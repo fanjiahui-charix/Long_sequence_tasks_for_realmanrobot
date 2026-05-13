@@ -1,0 +1,14 @@
+scene:
+  description: Lab scene with large numeric labels on tables.
+  assumptions:
+    - Tables are identified by visible large number labels.
+    - A single image can support coarse planning only.
+    - Real robot execution must validate the plan with local sensors and safety checks.
+  known_tables:
+    - label: "1"
+      semantic_name: table_1
+    - label: "2"
+      semantic_name: table_2
+    - label: "3"
+      semantic_name: table_3
+

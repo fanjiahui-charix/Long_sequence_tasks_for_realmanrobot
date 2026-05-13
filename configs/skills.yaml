@@ -1,0 +1,43 @@
+skills:
+  - name: locate_table
+    description: Locate a table by a large visible numeric label in the image.
+    args:
+      label: string
+  - name: plan_path
+    description: Plan a coarse route between two labeled tables from one image.
+    args:
+      from_table: string
+      to_table: string
+  - name: navigate_to
+    description: Navigate the mobile base to a table or waypoint.
+    args:
+      target: string
+  - name: align_to_table
+    description: Align the robot to a table for perception or manipulation.
+    args:
+      table: string
+  - name: look_at
+    description: Point the head/camera at a table or target region.
+    args:
+      target: string
+  - name: detect_object
+    description: Detect a target object in the current camera view.
+    args:
+      object: string
+  - name: pick_object
+    description: Pick an object that has already been detected and judged graspable.
+    args:
+      object: string
+  - name: place_object
+    description: Place the currently held object at a target table or drop zone.
+    args:
+      target: string
+  - name: ask_human
+    description: Ask a human for clarification when visual or task information is insufficient.
+    args:
+      question: string
+  - name: abort
+    description: Stop the task when it cannot be safely planned or executed.
+    args:
+      reason: string
+

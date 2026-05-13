@@ -1,0 +1,6 @@
+targets:
+  table_1: "dianA"
+  table_2: "dianB"
+  table_3: "dianC"
+  overview: "overview"
+  home: "home"

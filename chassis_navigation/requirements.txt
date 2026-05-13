@@ -1,0 +1,7 @@
+# No third-party Python packages are required for scripts/chassis_api.py.
+# It uses only the Python 3 standard library.
+#
+# Optional ROS path requires the robot's existing ROS Noetic workspace:
+#   ~/catkin_ws
+#   rm_dual_arm_agv
+

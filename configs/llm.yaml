@@ -1,0 +1,6 @@
+provider: qwen
+model: qwen-vl-plus
+base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+temperature: 0.1
+timeout_sec: 60
+
