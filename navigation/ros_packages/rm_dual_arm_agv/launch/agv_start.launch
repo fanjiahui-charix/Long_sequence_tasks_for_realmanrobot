@@ -1,0 +1,11 @@
+<launch>
+
+    <arg name="chassis_ip"         default="192.168.10.10"/>
+    <arg name="chassis_port"       default="31001"/>
+
+    <!-- agv_demo节点 -->
+    <node respawn="true" pkg="rm_dual_arm_agv" name="chassis_driver_node" type="agv_controller.py" output="screen">
+        <param name="chassis_ip" value="$(arg chassis_ip)" type="string"/>
+        <param name="chassis_port" value="$(arg chassis_port)" type="int"/>
+    </node>
+</launch>
