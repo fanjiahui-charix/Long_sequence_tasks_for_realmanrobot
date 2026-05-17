@@ -7,7 +7,7 @@ BASE_DIR="/home/rm/Long_sequence_tasks/vision_grasp/ros_packages"
 
 mkdir -p "$SRC_DIR"
 
-for pkg in rm_dual_arm_arm_msgs robot_end_effector; do
+for pkg in rm_dual_arm_arm_msgs robot_end_effector rm_dual_arm_arm_driver; do
   target="$SRC_DIR/$pkg"
   source_path="$BASE_DIR/$pkg"
   if [ ! -e "$target" ]; then

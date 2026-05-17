@@ -36,6 +36,17 @@ def _parse_lines(raw: str) -> List[Any]:
     return parsed
 
 
+def _ensure_ok_response(parsed: List[Any]) -> None:
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status", "")).strip()
+        if status and status != "OK":
+            message = item.get("error_message") or item.get("message") or "unknown chassis error"
+            command = item.get("command", "")
+            raise ChassisNavigationError(f"{status}: {message} ({command})")
+
+
 @dataclass
 class ChassisNavigationClient:
     host: str = DEFAULT_HOST
@@ -66,13 +77,15 @@ class ChassisNavigationClient:
 
     def _result(self, mode: str, command: str, extra: Dict[str, Any] | None = None) -> Dict[str, Any]:
         raw = self.request(command)
+        parsed = _parse_lines(raw)
+        _ensure_ok_response(parsed)
         result = {
             "backend": "tcp",
             "mode": mode,
             "host": self.host,
             "port": self.port,
             "command": command,
-            "response": _parse_lines(raw),
+            "response": parsed,
         }
         if extra:
             result.update(extra)

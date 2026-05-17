@@ -16,6 +16,21 @@ from .schema import validate_plan
 DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
+def load_local_env() -> None:
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
 def image_to_data_url(image_path: str | Path) -> str:
     path = Path(image_path)
     mime_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
@@ -41,6 +56,7 @@ class QwenPlannerClient:
         temperature: float = 0.1,
         timeout_sec: float = 60.0,
     ) -> None:
+        load_local_env()
         self.model = model or os.getenv("QWEN_MODEL", "qwen-vl-plus")
         self.temperature = temperature
         self.last_response_meta: dict = {}

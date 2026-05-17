@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,9 @@ def main() -> None:
     parser.add_argument("--task", required=True, help="Natural-language robot task.")
     parser.add_argument("--model", default=None, help="Override Qwen model name.")
     args = parser.parse_args()
+
+    os.environ["LONG_TASKS_NAV_BACKEND"] = "mock"
+    os.environ["LONG_TASKS_MANIPULATION_BACKEND"] = "mock"
 
     planner = QwenPlannerClient(model=args.model)
     plan = planner.plan_from_image(

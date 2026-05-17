@@ -1,0 +1,19 @@
+{
+  "goal": "move to table 2 and pick apple",
+  "steps": [
+    {
+      "id": "s1",
+      "skill": "navigate_to",
+      "args": {
+        "target": "table_2"
+      }
+    },
+    {
+      "id": "s2",
+      "skill": "pick_object",
+      "args": {
+        "object": "apple"
+      }
+    }
+  ]
+}

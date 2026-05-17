@@ -12,7 +12,7 @@
    - `rm_dual_arm_description`
    - `rm_dual_arm_moveit`
 
-3. `/home/rm/Long sequence tasks/...`
+3. `/home/rm/Long_sequence_tasks/...`
    Your high-level planning and execution code.
    This folder should hold the LLM planner, task executor, and thin ROS wrappers.
 
@@ -23,7 +23,7 @@
 - `run_navigation_demo.py`
   A quick command-line test sender.
 - `agv_socket_bridge.py`
-  A self-contained ROS-to-chassis bridge moved into `Long sequence tasks`.
+  A self-contained ROS-to-chassis bridge moved into `Long_sequence_tasks`.
 
 ## Recommended implementation path
 
@@ -77,7 +77,7 @@ For your current workspace, the fastest MVP is:
 
 1. Use the vendor web mapping / saved marker points for real robot movement.
 2. Use RViz for visualization.
-3. Use `Long sequence tasks` to send the high-level navigation command.
+3. Use `Long_sequence_tasks` to send the high-level navigation command.
 
 That is the shortest path to a working robot demo.
 
@@ -92,9 +92,9 @@ You asked to reduce dependency on `/home/rm/catkin_ws`.
 Current status:
 
 - Navigation command bridge:
-  now can run directly from `Long sequence tasks`
+  now can run directly from `Long_sequence_tasks`
 - High-level planner / executor:
-  already lives in `Long sequence tasks`
+  already lives in `Long_sequence_tasks`
 - RViz robot model:
   still depends on your robot description package in `catkin_ws`
 - Full SLAM / move_base / amcl stack:
@@ -105,16 +105,16 @@ but RViz model and full navigation stack are not fully portable yet.
 
 ## Skill integration
 
-`skills/navigation_skill.py` can now call ROS directly when you enable:
+`planner/skills/navigation_skill.py` can now call ROS directly when you enable:
 
 ```bash
-export LONG_TASKS_USE_ROS_NAV=1
+export LONG_TASKS_NAV_BACKEND=ros
 ```
 
 It reads target-to-marker mappings from:
 
 ```text
-/home/rm/Long sequence tasks/configs/nav_targets.yaml
+/home/rm/Long_sequence_tasks/planner/configs/nav_targets.yaml
 ```
 
 Edit that file so your semantic targets match your real marker names.
@@ -122,6 +122,6 @@ Edit that file so your semantic targets match your real marker names.
 ## Suggested next steps
 
 1. Confirm marker navigation works through `run_navigation_demo.py`.
-2. Edit `configs/nav_targets.yaml` to match your real map markers.
-3. Run the task executor with `LONG_TASKS_USE_ROS_NAV=1`.
+2. Edit `planner/configs/nav_targets.yaml` to match your real map markers.
+3. Run the task executor with `LONG_TASKS_NAV_BACKEND=ros`.
 4. After that, decide whether to keep using the vendor map as MVP or add a full ROS SLAM/navigation stack.

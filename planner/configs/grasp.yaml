@@ -1,0 +1,9 @@
+arm_ns: "l_arm"
+end_effector_type: "dexterous_hand"
+gripper_open_position: 1000
+gripper_pick_speed: 400
+gripper_pick_force: 300
+hand_speed: 400
+hand_force: 300
+hand_open_angles: [0, 0, 0, 0, 0, 1000]
+hand_close_angles: [1000, 1000, 1000, 1000, 1000, 0]

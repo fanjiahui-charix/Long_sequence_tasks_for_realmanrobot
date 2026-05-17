@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,12 @@ from planner.skills.registry import build_default_skill_registry
 def main() -> None:
     parser = argparse.ArgumentParser(description="Execute a generated plan using prototype local skills.")
     parser.add_argument("--plan", required=True, help="Path to a plan JSON file.")
+    parser.add_argument("--nav-backend", default="mock", choices=["mock", "tcp", "ros"])
+    parser.add_argument("--manipulation-backend", default="mock", choices=["mock", "ros"])
     args = parser.parse_args()
+
+    os.environ["LONG_TASKS_NAV_BACKEND"] = args.nav_backend
+    os.environ["LONG_TASKS_MANIPULATION_BACKEND"] = args.manipulation_backend
 
     with Path(args.plan).open("r", encoding="utf-8") as f:
         plan = json.load(f)
