@@ -1,4 +1,5 @@
 # Long Sequence Tasks 中文说明
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 这个仓库是机器人长序列移动操作任务的统一工作区，按能力模块组织，而不是按底层实现方式组织。
 

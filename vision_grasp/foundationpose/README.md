@@ -1,6 +1,5 @@
 # FoundationPose Module
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 This directory contains the internal FoundationPose module used by
 `Long_sequence_tasks` for 6D pose estimation.

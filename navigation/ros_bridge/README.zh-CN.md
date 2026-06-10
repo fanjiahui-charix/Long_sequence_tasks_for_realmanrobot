@@ -1,4 +1,5 @@
 # Navigation ROS 桥接层中文说明
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `navigation/ros_bridge/` 是导航模块的 ROS 适配层。它让 `Long_sequence_tasks` 的其他模块可以通过 ROS 话题发导航命令，而不是直接调用底盘 TCP 客户端。
 

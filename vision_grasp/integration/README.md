@@ -1,6 +1,5 @@
 # Vision-Grasp Integration
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 This directory contains the glue code between the FoundationPose module and the
 robot execution stack.

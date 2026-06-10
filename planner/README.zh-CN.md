@@ -1,4 +1,5 @@
 # Planner 中文说明
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `planner/` 是长序列任务里的推理与执行层，负责把任务文本和场景上下文转成结构化计划，并把计划交给导航与操作技能执行。
 

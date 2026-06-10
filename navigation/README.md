@@ -1,6 +1,5 @@
 # Navigation
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `navigation/` contains the base-motion layer for long-sequence tasks. It gives
 you two ways to command the chassis:

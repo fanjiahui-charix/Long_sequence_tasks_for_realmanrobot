@@ -1,6 +1,5 @@
 # Planner
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `planner/` is the long-sequence reasoning and execution layer. It converts a
 task description plus scene context into a structured plan, and it can execute

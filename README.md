@@ -1,6 +1,5 @@
 # Long Sequence Tasks
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 This repository is the unified workspace for long-horizon mobile manipulation on
 the robot. It groups the project by capability instead of by implementation

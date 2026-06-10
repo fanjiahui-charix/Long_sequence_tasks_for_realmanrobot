@@ -1,4 +1,5 @@
 # FoundationPose 模块中文说明
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 这个目录是 `Long_sequence_tasks` 内部使用的 FoundationPose 模块，用于 6D 物体位姿估计。
 

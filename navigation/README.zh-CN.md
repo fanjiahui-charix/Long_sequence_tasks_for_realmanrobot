@@ -1,4 +1,5 @@
 # Navigation 中文说明
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `navigation/` 是长序列任务里的底盘运动层，负责把上层目标转成底盘移动命令。
 

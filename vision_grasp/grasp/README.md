@@ -1,6 +1,5 @@
 # Grasp Execution
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `vision_grasp/grasp/` contains the robot-side execution layer for grasping. It
 takes pose outputs or direct commands and turns them into arm motion and

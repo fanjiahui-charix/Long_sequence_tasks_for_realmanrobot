@@ -1,6 +1,5 @@
 # Navigation ROS Bridge
-
-Chinese version: `README.zh-CN.md`
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
 `navigation/ros_bridge/` is the ROS-facing navigation adapter layer. It lets
 the rest of `Long_sequence_tasks` talk to the chassis through ROS topics rather
