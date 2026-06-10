@@ -58,6 +58,8 @@ vision_grasp/
   读取 pose JSON/TXT 并转成结构化对象
 - `run_pose_grasp_pipeline.py`
   一条命令完成 `capture -> mask -> pose -> 可选抓取`
+- `run_yolo_seg_mask.py`
+  基于官方 Ultralytics 的单帧 YOLO-seg 掩码生成脚本
 
 ### `grasp/`
 
@@ -149,6 +151,33 @@ source /home/rm/miniforge3/bin/activate foundationpose
 ```
 
 pipeline 脚本已经帮你拆好了这两套环境。
+
+## Mask 后端
+
+`run_pose_grasp_pipeline.py` 现在支持两种自动 mask 后端：
+
+- `depth`
+  传统深度阈值前景分割
+- `yolo-seg`
+  基于官方 Ultralytics YOLO-seg 的神经网络实例分割
+
+针对你当前这台 Jetson Xavier NX，当前推荐先用：
+
+- 官方轻量模型：`yolov8n-seg.pt`
+- 执行环境：`/usr/bin/python3`
+- 已验证的远程依赖栈：
+  - `ultralytics==8.2.103`
+  - `torch 2.1.0a0+41361538.nv23.06`
+  - CUDA 可用
+
+注意：
+
+- 官方 COCO 权重 `yolov8n-seg.pt` 更适合先验证
+  `YOLO-seg -> mask -> FoundationPose`
+  这条代码链和运行兼容性
+- 如果要稳定分割你自己的 `glasses_case_box`，通常仍然需要你后续训练一个自定义
+  YOLO-seg `best.pt`
+- 到那一步时，你只需要替换 `--seg-weights` 和 `--seg-label`
 
 ## 常用命令
 
@@ -250,6 +279,30 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
   使用手工 mask 或分割模块生成的 mask
 - `--execute-grasp`
   真正驱动机械臂执行抓取
+
+### 用 YOLO-seg 先分割，再交给 FoundationPose
+
+```bash
+source /home/rm/miniforge3/bin/activate foundationpose
+
+python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
+  --camera-name camera_middle \
+  --camera-frame camera_middle \
+  --mesh /home/rm/Long_sequence_tasks/vision_grasp/object_models/glasses_case_box/glasses_case_box.obj \
+  --object-label glasses_case_box \
+  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/glasses_case_box_grasp.yaml \
+  --mask-backend yolo-seg \
+  --seg-weights yolov8n-seg.pt \
+  --seg-label glasses_case_box \
+  --mask
+```
+
+作用：
+
+- 先采当前 RGB-D
+- 用 YOLO-seg 生成 `mask.png`
+- 再把这个 mask 交给 FoundationPose
+- 最终把位姿结果写到 runtime 目录
 
 ### 从已有 pose 文件执行真实抓取
 

@@ -58,6 +58,8 @@ Main files:
   loads pose JSON/TXT into structured Python objects
 - `run_pose_grasp_pipeline.py`
   one-command `capture -> mask -> pose -> optional grasp`
+- `run_yolo_seg_mask.py`
+  one-frame YOLO-seg mask generation helper based on official Ultralytics
 
 ### `grasp/`
 
@@ -149,6 +151,33 @@ source /home/rm/miniforge3/bin/activate foundationpose
 ```
 
 The pipeline scripts already split these environments correctly.
+
+## Mask Backends
+
+`run_pose_grasp_pipeline.py` now supports two automatic mask backends:
+
+- `depth`
+  the original depth-threshold foreground extraction
+- `yolo-seg`
+  neural instance segmentation based on official Ultralytics YOLO-seg
+
+Recommended on the current Jetson Xavier NX:
+
+- official lightweight model: `yolov8n-seg.pt`
+- execution environment: `/usr/bin/python3`
+- verified remote stack:
+  - `ultralytics==8.2.103`
+  - `torch 2.1.0a0+41361538.nv23.06`
+  - CUDA available
+
+Important:
+
+- the official COCO `yolov8n-seg.pt` is suitable for validating the code path
+  and runtime compatibility
+- for your own object such as `glasses_case_box`, you will normally still need a
+  custom YOLO-seg `best.pt`
+- once that weight is ready, you only need to change `--seg-weights` and
+  `--seg-label`
 
 ## Main Commands
 
@@ -247,6 +276,30 @@ Meaning of the important arguments:
   use a manual or segmentation-generated mask file instead
 - `--execute-grasp`
   actually move the hardware after pose estimation
+
+### Unified pipeline with YOLO-seg mask
+
+```bash
+source /home/rm/miniforge3/bin/activate foundationpose
+
+python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
+  --camera-name camera_middle \
+  --camera-frame camera_middle \
+  --mesh /home/rm/Long_sequence_tasks/vision_grasp/object_models/glasses_case_box/glasses_case_box.obj \
+  --object-label glasses_case_box \
+  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/glasses_case_box_grasp.yaml \
+  --mask-backend yolo-seg \
+  --seg-weights yolov8n-seg.pt \
+  --seg-label glasses_case_box \
+  --mask
+```
+
+Effect:
+
+- capture the current RGB-D frame
+- run YOLO-seg first to produce `mask.png`
+- pass that mask into FoundationPose
+- write the pose result into the runtime directory
 
 ### Real pose grasp from an existing pose file
 

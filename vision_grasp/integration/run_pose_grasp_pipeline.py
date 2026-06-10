@@ -21,6 +21,7 @@ ROS_SETUP_SCRIPTS = (
 )
 CAPTURE_SCRIPT = FOUNDATIONPOSE_ROOT / "capture_object_rgbd.py"
 RAW_RGBD_CAPTURE_HELPER = VISION_GRASP_DIR / "camera" / "capture_rgbd_frame.py"
+YOLO_SEG_RUNNER = VISION_GRASP_DIR / "integration" / "run_yolo_seg_mask.py"
 FOUNDATIONPOSE_RUNNER = VISION_GRASP_DIR / "integration" / "run_foundationpose_single.sh"
 GRASP_RUNNER = VISION_GRASP_DIR / "grasp" / "run_grasp.py"
 DEFAULT_CONFIG_PATH = VISION_GRASP_DIR / "configs" / "grasp_config.example.yaml"
@@ -47,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runtime-root", default=str(VISION_GRASP_DIR / "runtime"))
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--execute-grasp", action="store_true")
+    parser.add_argument(
+        "--mask-backend",
+        default="depth",
+        choices=["depth", "yolo-seg"],
+        help="Auto-mask backend. depth uses depth thresholding; yolo-seg uses official Ultralytics segmentation.",
+    )
 
     parser.add_argument(
         "--mask",
@@ -65,6 +72,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-depth-mm", type=int, default=100)
     parser.add_argument("--max-depth-mm", type=int, default=2000)
     parser.add_argument("--min-area", type=int, default=300)
+    parser.add_argument("--edge-margin-px", type=int, default=12)
+    parser.add_argument("--center-window-scale", type=float, default=0.25)
+    parser.add_argument("--center-min-valid", type=int, default=50)
+
+    parser.add_argument("--seg-weights", default="yolov8n-seg.pt")
+    parser.add_argument("--seg-label", default=None, help="YOLO-seg target class label. Defaults to --object-label when omitted.")
+    parser.add_argument("--seg-conf", type=float, default=0.25)
+    parser.add_argument("--seg-imgsz", type=int, default=640)
+    parser.add_argument("--seg-device", default="0")
+    parser.add_argument("--seg-max-det", type=int, default=20)
 
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--est-refine-iter", type=int, default=5)
@@ -83,6 +100,7 @@ def main() -> int:
     camera_frame = args.camera_frame or args.camera_name
     pose_output = runtime_dir / "foundationpose_pose.json"
     debug_dir = runtime_dir / "foundationpose_debug"
+    yolo_seg_json = runtime_dir / "yolo_seg_result.json"
 
     mask_mode, manual_mask_path = _resolve_mask_source(args.mask)
 
@@ -90,10 +108,19 @@ def main() -> int:
         raw_capture_cmd = _build_raw_rgbd_capture_cmd(args, capture_dir)
         _run_command(raw_capture_cmd, cwd=ROOT)
         mask_path = _copy_manual_mask(manual_mask_path, runtime_dir)
+        mask_backend = "manual"
+    elif args.mask_backend == "yolo-seg":
+        raw_capture_cmd = _build_raw_rgbd_capture_cmd(args, capture_dir)
+        _run_command(raw_capture_cmd, cwd=ROOT)
+        mask_path = capture_dir / "mask.png"
+        yolo_seg_cmd = _build_yolo_seg_cmd(args, capture_dir, mask_path, yolo_seg_json)
+        _run_command(yolo_seg_cmd, cwd=ROOT)
+        mask_backend = "yolo-seg"
     else:
         capture_cmd = _build_capture_cmd(args, capture_dir)
         _run_command(capture_cmd, cwd=ROOT)
         mask_path = capture_dir / "mask.png"
+        mask_backend = "depth"
 
     foundationpose_cmd = _build_foundationpose_cmd(
         args=args,
@@ -126,6 +153,7 @@ def main() -> int:
         "object_label": args.object_label,
         "execute_grasp": bool(args.execute_grasp),
         "mask_mode": mask_mode,
+        "mask_backend": mask_backend,
         "capture_dir": str(capture_dir),
         "capture_outputs": {
             "rgb": str(capture_dir / "rgb.png"),
@@ -140,6 +168,12 @@ def main() -> int:
             "pose_file_txt": str(pose_output.with_suffix(".txt")),
             "confidence": estimate.confidence,
             "pose_matrix": estimate.pose_matrix.tolist(),
+        },
+        "yolo_seg": {
+            "weights": args.seg_weights,
+            "label": args.seg_label or args.object_label,
+            "result_json": str(yolo_seg_json),
+            "result": _load_optional_json(yolo_seg_json),
         },
         "grasp": {
             "command": grasp_cmd,
@@ -179,11 +213,49 @@ def _build_capture_cmd(args: argparse.Namespace, capture_dir: Path) -> list[str]
         str(args.max_depth_mm),
         "--min-area",
         str(args.min_area),
+        "--edge-margin-px",
+        str(args.edge_margin_px),
+        "--center-window-scale",
+        str(args.center_window_scale),
+        "--center-min-valid",
+        str(args.center_min_valid),
     ]
     _maybe_append(cmd, "--roi", args.roi)
     _maybe_append(cmd, "--color-topic", args.color_topic)
     _maybe_append(cmd, "--depth-topic", args.depth_topic)
     _maybe_append(cmd, "--info-topic", args.info_topic)
+    return _wrap_ros_command(cmd)
+
+
+def _build_yolo_seg_cmd(
+    args: argparse.Namespace,
+    capture_dir: Path,
+    mask_path: Path,
+    result_json: Path,
+) -> list[str]:
+    cmd = [
+        str(ROS_PYTHON),
+        str(YOLO_SEG_RUNNER),
+        "--rgb",
+        str(capture_dir / "rgb.png"),
+        "--output-mask",
+        str(mask_path),
+        "--output-vis",
+        str(capture_dir / "mask_vis.png"),
+        "--output-json",
+        str(result_json),
+        "--weights",
+        str(args.seg_weights),
+        "--conf",
+        str(args.seg_conf),
+        "--imgsz",
+        str(args.seg_imgsz),
+        "--device",
+        str(args.seg_device),
+        "--max-det",
+        str(args.seg_max_det),
+    ]
+    _maybe_append(cmd, "--label", args.seg_label or args.object_label)
     return _wrap_ros_command(cmd)
 
 
@@ -310,6 +382,15 @@ def _try_parse_json(raw: str) -> dict | None:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        return None
+
+
+def _load_optional_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
         return None
 
 

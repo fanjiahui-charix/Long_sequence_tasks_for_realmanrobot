@@ -1,0 +1,43 @@
+arm_ns: "l_arm"
+base_frame: "base_left"
+camera_name: "camera_middle"
+camera_frame: "camera_middle"
+end_effector_type: "dexterous_hand"
+target_label: "glasses_case_box"
+
+# Fixed tool orientation in base frame, radians.
+grasp_rpy: [-2.135, 0.634, 2.254]
+
+# A safe pose before detection and after retreat.
+home_pose_xyz: [0.166941, -0.246564, 0.079859]
+home_pose_rpy: [-2.135, 0.634, 2.254]
+
+arm_speed: 0.1
+gripper_open_position: 1000
+gripper_pick_speed: 400
+gripper_pick_force: 300
+
+hand_speed: 400
+hand_force: 300
+hand_open_angles: [0, 0, 0, 0, 0, 1000]
+hand_close_angles: [1000, 1000, 1000, 1000, 1000, 0]
+
+foundationpose_pose_file: ""
+motion_timeout: 20.0
+
+# Use the current fixed wrist orientation first. Tune later if needed.
+pose_grasp_orientation_mode: "fixed_rpy"
+pose_grasp_rpy: [-2.135, 0.634, 2.254]
+
+# Shorter approach / retreat than the default config, to keep the pregrasp pose
+# inside the left-arm workspace more often for a hand-held box target.
+pregrasp_offset_local: [0.0, 0.0, -0.06]
+retreat_offset_local: [0.0, 0.0, -0.10]
+
+# Start by grasping through the box center. If needed, later shift this toward
+# one face or one edge.
+object_grasp_transform:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
