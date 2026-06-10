@@ -1,0 +1,8 @@
+weights/
+assets/
+demo_data/
+foundationpose_live/
+mycpp/build/
+*.bag
+*.mp4
+*.avi

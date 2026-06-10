@@ -1,4 +1,6 @@
 arm_ns: "l_arm"
+base_frame: "base_left"
+camera_frame: "camera_middle"
 end_effector_type: "dexterous_hand"
 gripper_open_position: 1000
 gripper_pick_speed: 400
@@ -7,3 +9,16 @@ hand_speed: 400
 hand_force: 300
 hand_open_angles: [0, 0, 0, 0, 0, 1000]
 hand_close_angles: [1000, 1000, 1000, 1000, 1000, 0]
+motion_timeout: 20.0
+foundationpose_pose_file: ""
+pose_grasp_orientation_mode: "fixed_rpy"
+pose_grasp_rpy: [-2.135, 0.634, 2.254]
+pregrasp_offset_local: [0.0, 0.0, -0.12]
+retreat_offset_local: [0.0, 0.0, -0.18]
+object_grasp_transform:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+home_pose_xyz: [0.166941, -0.246564, 0.079859]
+home_pose_rpy: [-2.135, 0.634, 2.254]

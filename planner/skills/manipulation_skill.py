@@ -7,11 +7,12 @@ from typing import Any
 import yaml
 
 from .base import SkillResult
-from vision_grasp.end_effector_client import EndEffectorClient, EndEffectorControlError
+from vision_grasp.grasp.end_effector_client import EndEffectorClient, EndEffectorControlError
+from vision_grasp.grasp.pose_grasp import PoseGraspError, execute_pose_grasp_from_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GRASP_CONFIG_PATH = ROOT / "configs" / "grasp.yaml"
+DEFAULT_GRASP_CONFIG_PATH = ROOT.parents[1] / "vision_grasp" / "configs" / "grasp_config.example.yaml"
 
 
 def _manipulation_backend() -> str:
@@ -47,9 +48,16 @@ class PickObjectSkill:
 
         try:
             if kwargs.get("mode") == "pick_demo":
-                from vision_grasp.run_grasp import _run_pick_demo
+                from vision_grasp.grasp.run_grasp import _run_pick_demo
 
                 result = _run_pick_demo(config, obj)
+            elif kwargs.get("mode") == "pose_grasp":
+                result = execute_pose_grasp_from_config(
+                    config,
+                    pose_file=kwargs.get("pose_file"),
+                    object_label=obj,
+                    camera_frame=kwargs.get("camera_frame"),
+                )
             else:
                 client = EndEffectorClient(arm_ns=arm_ns, end_effector_type=end_effector_type)
                 result = client.close(
@@ -62,7 +70,7 @@ class PickObjectSkill:
                 result["object"] = obj
                 result["mode"] = kwargs.get("mode", "close_only")
             return SkillResult(ok=True, data=result)
-        except (ValueError, EndEffectorControlError, ImportError) as exc:
+        except (ValueError, EndEffectorControlError, ImportError, PoseGraspError) as exc:
             return SkillResult(ok=False, error=str(exc), data={"object": obj, "backend": backend})
 
 

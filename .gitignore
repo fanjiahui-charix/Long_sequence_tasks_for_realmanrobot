@@ -21,3 +21,12 @@ env/
 *.db
 .DS_Store
 
+.run/
+vision_grasp/runtime/
+vision_grasp/foundationpose/weights/
+vision_grasp/foundationpose/assets/
+vision_grasp/foundationpose/demo_data/
+vision_grasp/foundationpose/foundationpose_live/
+vision_grasp/foundationpose/mycpp/build/
+**/*.bak_*
+**/__pycache__/

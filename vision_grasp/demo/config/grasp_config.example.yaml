@@ -1,6 +1,7 @@
 arm_ns: "l_arm"
 base_frame: "base_left"
 camera_name: "camera_middle"
+camera_frame: "camera_middle"
 end_effector_type: "dexterous_hand"
 target_label: ""
 weights_path: "/home/rm/Long_sequence_tasks/vision_grasp/demo/weights/best.pt"
@@ -30,3 +31,16 @@ hand_speed: 400
 hand_force: 300
 hand_open_angles: [0, 0, 0, 0, 0, 1000]
 hand_close_angles: [1000, 1000, 1000, 1000, 1000, 0]
+
+# FoundationPose -> pose grasp config.
+foundationpose_pose_file: ""
+motion_timeout: 20.0
+pose_grasp_orientation_mode: "fixed_rpy"
+pose_grasp_rpy: [-2.135, 0.634, 2.254]
+pregrasp_offset_local: [0.0, 0.0, -0.12]
+retreat_offset_local: [0.0, 0.0, -0.18]
+object_grasp_transform:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]

@@ -1,109 +1,125 @@
 # Navigation
 
-This folder contains all mobile-base navigation code for `Long_sequence_tasks`.
+Chinese version: `README.zh-CN.md`
 
-## Layout
+`navigation/` contains the base-motion layer for long-sequence tasks. It gives
+you two ways to command the chassis:
+
+- direct TCP control through the chassis API
+- ROS-compatible wrappers and publishers for integration with the robot stack
+
+## Core Purpose
+
+Use this module when the task is:
+
+- move to a named marker
+- move to a target table or point
+- move to an explicit `(x, y, theta)` pose
+- inspect chassis status from Python
+
+## Architecture
 
 ```text
 navigation/
-  direct_api/     Direct TCP chassis control
-  ros_bridge/     ROS-topic wrappers for debugging and compatibility
-  ros_packages/   Vendored rm_dual_arm_agv ROS package
-  chassis_client.py
-  run_navigation.py
+  chassis_client.py          Direct TCP client to the AGV controller
+  run_navigation.py          Main CLI entrypoint
+  ros_bridge/                ROS publishers / helper bridge nodes
+  ros_packages/              Vendored AGV ROS package
+  setup_nav_ws.sh            Build helper for the local nav workspace
 ```
 
-## Recommended Entry
+### File Responsibilities
 
-For project code and future LLM integration, use the local Python entrypoint:
+- `chassis_client.py`
+  lowest-level TCP API for marker and coordinate commands
+- `run_navigation.py`
+  main user entrypoint for direct navigation
+- `ros_bridge/navigation_bridge.py`
+  helper class for publishing navigation commands into ROS topics
+- `ros_bridge/agv_socket_bridge.py`
+  ROS node that forwards AGV ROS commands to the TCP chassis socket
+- `ros_bridge/README.md`
+  ROS bridge usage and topic contract
+- `ros_packages/rm_dual_arm_agv`
+  vendored ROS package for AGV control
+- `setup_nav_ws.sh`
+  creates and builds `~/lt_nav_ws`
+
+## Environments
+
+- Direct TCP path:
+  plain `python3`
+- ROS path:
+  `/usr/bin/python3` plus `source /opt/ros/noetic/setup.bash`
+
+## Main Commands
+
+### List markers
+
+```bash
+python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py markers
+```
+
+Effect:
+
+- prints all known markers from the configured target set
+
+### Query chassis status
+
+```bash
+python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py status
+```
+
+Effect:
+
+- reads the current base status through the direct TCP path
+
+### Move to a named target
 
 ```bash
 python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py target --name table_2
 ```
 
-Direct marker command:
+Parameters:
+
+- `--name`: target alias defined in your navigation targets
+
+Effect:
+
+- sends the base to the named waypoint
+
+### Move to a marker
 
 ```bash
 python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py marker --name pointc
 ```
 
-Direct coordinate command:
+Effect:
+
+- uses marker-based movement through the chassis interface
+
+### Move to explicit coordinates
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py location --x 1.0 --y 0.5 --theta 0.0
+python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py \
+  location --x 1.0 --y 0.5 --theta 0.0
 ```
 
-This path uses the chassis TCP API directly and does not require `rostopic pub`.
+Parameters:
 
-Verified commands in the current environment:
+- `--x`: map-frame x position
+- `--y`: map-frame y position
+- `--theta`: yaw in radians
 
-```bash
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py markers
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py status
-```
+## ROS Bringup Path
 
-## ROS Path
-
-If you want to use the vendored ROS navigation package inside
-`Long_sequence_tasks`, the runnable path is:
-
-- `ros_bridge/navigation_bridge.py`
-- `ros_bridge/run_navigation_demo.py`
-- `ros_packages/rm_dual_arm_agv`
-
-### Step 1: Build the navigation ROS workspace
-
-You do not have to create `~/lt_nav_ws`.
-
-There are two ways to run the ROS path.
-
-### Option A: Use your existing ROS workspace
-
-If your current robot workspace already contains `rm_dual_arm_agv`, just use it.
-
-For example:
-
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/rmc_dual_arm_robot/devel/setup.bash
-roslaunch rm_dual_arm_agv agv_start.launch
-```
-
-Then in another terminal:
-
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/rmc_dual_arm_robot/devel/setup.bash
-python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py marker --name pointc
-```
-
-If you want pure ROS topic commands instead of the helper script:
-
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/rmc_dual_arm_robot/devel/setup.bash
-rostopic pub -1 /navigation_marker std_msgs/String "data: 'pointc'"
-```
-
-### Option B: Create a small dedicated workspace
-
-This is optional. I used it only to keep testing isolated from your main robot workspace.
-
-Run this once:
+If you want ROS-based navigation integration:
 
 ```bash
 bash /home/rm/Long_sequence_tasks/navigation/setup_nav_ws.sh
 ```
 
-That creates a small catkin workspace:
-
-```text
-~/lt_nav_ws
-```
-
-### Step 2: Start the navigation ROS package
-
-Open terminal 1:
+Then:
 
 ```bash
 source /opt/ros/noetic/setup.bash
@@ -111,17 +127,7 @@ source ~/lt_nav_ws/devel/setup.bash
 roslaunch rm_dual_arm_agv agv_start.launch
 ```
 
-This node listens to:
-
-- `/navigation_marker`
-- `/navigation_location`
-- `/navigation_move_cancel`
-
-and forwards them to the chassis at `192.168.10.10:31001`.
-
-### Step 3: Send a ROS navigation command
-
-Open terminal 2:
+### ROS navigation command demo
 
 ```bash
 source /opt/ros/noetic/setup.bash
@@ -129,63 +135,20 @@ source ~/lt_nav_ws/devel/setup.bash
 python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py marker --name pointc
 ```
 
-That helper script is just a small ROS publisher wrapper.
+Effect:
 
-It is equivalent in spirit to:
+- publishes a ROS navigation command instead of using direct TCP
 
-```bash
-rostopic pub -1 /navigation_marker std_msgs/String "data: 'pointc'"
-```
+## Backend Choice
 
-I kept it because it is easier to integrate into your own Python code later.
+Use direct TCP when:
 
-### Move to a coordinate through ROS
+- you want the simplest path
+- you do not need ROS topics in the middle
+- you are integrating directly from Python
 
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/lt_nav_ws/devel/setup.bash
-python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py \
-  location --x 1.0 --y 0.5 --theta 0.0
-```
+Use the ROS path when:
 
-### Cancel current movement through ROS
-
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/lt_nav_ws/devel/setup.bash
-python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py cancel
-```
-
-### Check that the ROS node is alive
-
-If you are unsure whether the ROS package is running:
-
-```bash
-source /opt/ros/noetic/setup.bash
-source ~/lt_nav_ws/devel/setup.bash
-rosnode list
-rostopic list | grep navigation
-```
-
-You should see the chassis driver node and the navigation topics.
-
-### Recommended choice
-
-Use this when:
-
-- you specifically want ROS topics
-- you want compatibility with other ROS nodes
-- you want your planner to switch to `LONG_TASKS_NAV_BACKEND=ros`
-
-Use `navigation/run_navigation.py` when:
-
-- you want the shortest path
-- you do not need ROS in the middle
-- you want direct TCP control from your own Python code
-
-For your current setup, the simplest choices are:
-
-1. Direct TCP:
-   `python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py marker --name pointc`
-2. Existing ROS workspace:
-   `source ~/rmc_dual_arm_robot/devel/setup.bash` and then `roslaunch rm_dual_arm_agv agv_start.launch`
+- you want topic-based integration
+- you want other ROS nodes to observe or publish navigation actions
+- your bringup already depends on the AGV ROS node

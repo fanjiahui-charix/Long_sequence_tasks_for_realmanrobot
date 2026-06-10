@@ -1,127 +1,135 @@
-# ROS Integration Notes
+# Navigation ROS Bridge
 
-## Three layers
+Chinese version: `README.zh-CN.md`
 
-1. `/opt/ros/noetic/...`
-   Official ROS packages installed by apt, such as `rviz`, `map_server`, `amcl`, `rospy`.
-   You normally do not edit these files directly.
+`navigation/ros_bridge/` is the ROS-facing navigation adapter layer. It lets
+the rest of `Long_sequence_tasks` talk to the chassis through ROS topics rather
+than calling the TCP chassis client directly.
 
-2. `/home/rm/catkin_ws/src/...`
-   Your robot workspace packages, such as:
-   - `rm_dual_arm_agv`
-   - `rm_dual_arm_description`
-   - `rm_dual_arm_moveit`
+## Purpose
 
-3. `/home/rm/Long_sequence_tasks/...`
-   Your high-level planning and execution code.
-   This folder should hold the LLM planner, task executor, and thin ROS wrappers.
+Use this directory when you want:
 
-## What this folder now contains
+- topic-based navigation integration
+- a ROS node that forwards navigation commands to the chassis socket
+- quick CLI testing of ROS navigation commands
+- planner integration through ROS instead of direct TCP
+
+## Files
 
 - `navigation_bridge.py`
-  Publish navigation commands to the existing AGV topics.
-- `run_navigation_demo.py`
-  A quick command-line test sender.
+  small Python helper that publishes marker, location, RViz-goal, and cancel
+  commands
 - `agv_socket_bridge.py`
-  A self-contained ROS-to-chassis bridge moved into `Long_sequence_tasks`.
+  ROS node that subscribes to navigation topics and forwards them to the chassis
+  TCP API
+- `run_navigation_demo.py`
+  simple command-line test sender for the ROS navigation path
+- `__init__.py`
+  package marker
 
-## Recommended implementation path
+## Topic Contract
 
-### Phase 1: First make navigation usable
+Current topics used by this bridge:
 
-Use the self-contained AGV bridge in this folder:
+- `/navigation_marker`
+  string marker command such as `pointc`
+- `/long_tasks/navigation_location_json`
+  JSON payload with `x`, `y`, `theta`
+- `/navigation_move_cancel`
+  cancel the current motion
+- `/move_base_simple/goal`
+  RViz-compatible 2D goal publication
+- `/navigation_feedback`
+  raw chassis feedback forwarded by the bridge node
+
+## Environment
+
+Run these scripts in a sourced ROS environment:
 
 ```bash
 source /opt/ros/noetic/setup.bash
-roscore
+```
+
+If your AGV ROS workspace is needed:
+
+```bash
+source ~/lt_nav_ws/devel/setup.bash
+```
+
+## Main Commands
+
+### Start the ROS-to-chassis bridge
+
+```bash
+source /opt/ros/noetic/setup.bash
 python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/agv_socket_bridge.py
 ```
 
-Then test one marker command from this folder:
+Effect:
 
-```bash
-python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py marker --name dianA
-```
+- creates a ROS node
+- listens for navigation topics
+- forwards marker and location commands to the chassis TCP endpoint
 
-Or test one coordinate command:
-
-```bash
-python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py location --x 1.0 --y 0.5 --theta 0.0
-```
-
-### Phase 2: RViz visualization
-
-You already have a robot RViz launch:
+### Send a marker command
 
 ```bash
 source /opt/ros/noetic/setup.bash
-source ~/catkin_ws/devel/setup.bash
-roslaunch rm_dual_arm_description load_robot.launch
+python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py \
+  marker --name pointc
 ```
 
-This gives you robot model visualization in RViz.
+Effect:
 
-Important:
-The self-contained bridge in this folder uses:
-- `/navigation_marker`
-- `/long_tasks/navigation_location_json`
-- `/navigation_move_cancel`
+- publishes one `/navigation_marker` message
 
-That is still different from the standard ROS navigation stack.
-So RViz can show the robot model now, but RViz's `2D Nav Goal` only becomes a full navigation tool
-when you also have a standard stack listening to `/move_base_simple/goal`.
-
-### Phase 3: Mapping and standard ROS navigation
-
-For your current workspace, the fastest MVP is:
-
-1. Use the vendor web mapping / saved marker points for real robot movement.
-2. Use RViz for visualization.
-3. Use `Long_sequence_tasks` to send the high-level navigation command.
-
-That is the shortest path to a working robot demo.
-
-If later you want full ROS SLAM + `2D Nav Goal` + `map_server` + `amcl`, you need a complete navigation stack package.
-Those runtime packages may be installed under `/opt/ros/noetic`, but you still need the robot-specific launch and config files
-in your own workspace.
-
-## Independence from `catkin_ws`
-
-You asked to reduce dependency on `/home/rm/catkin_ws`.
-
-Current status:
-
-- Navigation command bridge:
-  now can run directly from `Long_sequence_tasks`
-- High-level planner / executor:
-  already lives in `Long_sequence_tasks`
-- RViz robot model:
-  still depends on your robot description package in `catkin_ws`
-- Full SLAM / move_base / amcl stack:
-  still depends on ROS packages and robot-specific configs
-
-So this folder can become the standalone high-level package,
-but RViz model and full navigation stack are not fully portable yet.
-
-## Skill integration
-
-`planner/skills/navigation_skill.py` can now call ROS directly when you enable:
+### Send a coordinate command
 
 ```bash
-export LONG_TASKS_NAV_BACKEND=ros
+source /opt/ros/noetic/setup.bash
+python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py \
+  location --x 1.0 --y 0.5 --theta 0.0
 ```
 
-It reads target-to-marker mappings from:
+Effect:
 
-```text
-/home/rm/Long_sequence_tasks/planner/configs/nav_targets.yaml
+- publishes one JSON location command to
+  `/long_tasks/navigation_location_json`
+
+### Publish an RViz goal
+
+```bash
+source /opt/ros/noetic/setup.bash
+python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py \
+  rviz-goal --x 1.0 --y 0.5 --yaw 0.0 --frame-id map
 ```
 
-Edit that file so your semantic targets match your real marker names.
+Effect:
 
-## Suggested next steps
+- publishes a `PoseStamped` message to `/move_base_simple/goal`
 
-1. Confirm marker navigation works through `run_navigation_demo.py`.
-2. Edit `planner/configs/nav_targets.yaml` to match your real map markers.
-3. Run the task executor with `LONG_TASKS_NAV_BACKEND=ros`.
-4. After that, decide whether to keep using the vendor map as MVP or add a full ROS SLAM/navigation stack.
+### Cancel current navigation
+
+```bash
+source /opt/ros/noetic/setup.bash
+python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.py cancel
+```
+
+## How It Fits The Project
+
+- `navigation/run_navigation.py`
+  is the direct TCP path
+- `navigation/ros_bridge/`
+  is the ROS topic path
+- `planner/skills/navigation_skill.py`
+  can use this path when the ROS backend is enabled
+
+## Common Notes
+
+- This bridge does not replace a full ROS navigation stack by itself.
+- It is best viewed as a thin adapter between your high-level planner and the
+  existing chassis interface.
+- RViz goal publication is supported, but whether the robot actually moves from
+  `/move_base_simple/goal` depends on what navigation stack is running on the
+  robot.

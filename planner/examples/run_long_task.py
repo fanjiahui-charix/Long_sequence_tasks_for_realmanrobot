@@ -15,7 +15,7 @@ from navigation.chassis_client import ChassisNavigationClient, ChassisNavigation
 from planner.executor.task_executor import TaskExecutor
 from planner.llm.qwen_client import QwenPlannerClient
 from planner.skills.registry import build_default_skill_registry
-from vision_grasp.ros_image_capture import RosImageCaptureError, capture_rgb_image
+from vision_grasp.camera.ros_image_capture import RosImageCaptureError, capture_rgb_image
 
 
 def _patch_plan(plan: dict, pick_mode: str, task: str, nav_backend: str) -> dict:
@@ -106,7 +106,7 @@ def main() -> None:
     parser.add_argument(
         "--pick-mode",
         default="as_planned",
-        choices=["as_planned", "close_only", "pick_demo"],
+        choices=["as_planned", "close_only", "pick_demo", "pose_grasp"],
         help="Override how pick_object executes.",
     )
     parser.add_argument("--save-plan", default=None, help="Optional path to save the generated plan JSON.")

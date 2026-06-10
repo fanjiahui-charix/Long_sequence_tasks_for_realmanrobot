@@ -1,0 +1,29 @@
+source /opt/ros/noetic/setup.bash
+roscore
+
+source /opt/ros/noetic/setup.bash
+roslaunch realsense2_camera rs_camera.launch align_depth:=true
+
+python3 ~/FoundationPose/capture_object_rgbd.py \
+  --color-topic /camera/color/image_raw \
+  --depth-topic /camera/aligned_depth_to_color/image_raw \
+  --info-topic /camera/color/camera_info \
+  --output-dir /home/rm/FoundationPose/foundationpose_live
+
+  python3 ~/FoundationPose/capture_object_rgbd.py \
+  --camera-name camera \
+  --output-dir /home/rm/FoundationPose/foundationpose_live
+
+
+  /home/rm/miniforge3/envs/foundationpose/bin/python \
+  /home/rm/Long_sequence_tasks/vision_grasp/run_foundationpose_single.py \
+  --foundationpose-root /home/rm/FoundationPose \
+  --mesh /home/rm/FoundationPose/demo_data/mustard0/mesh/textured_simple.obj \
+  --rgb /home/rm/FoundationPose/foundationpose_live/rgb.png \
+  --depth /home/rm/FoundationPose/foundationpose_live/depth.png \
+  --mask /home/rm/FoundationPose/foundationpose_live/mask.png \
+  --k-file /home/rm/FoundationPose/foundationpose_live/cam_K.txt \
+  --camera-frame camera_color_optical_frame \
+  --object-label mustard \
+  --output /tmp/foundationpose_pose.json \
+  --debug 0
