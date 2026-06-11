@@ -17,6 +17,7 @@ in one place.
 ```text
 vision_grasp/
   foundationpose/    Internal FoundationPose module
+  segmentation/      YOLO-seg inference and training helpers
   integration/       FoundationPose wrappers and robot-facing pipelines
   grasp/             Arm and end-effector execution layer
   camera/            RGB / RGB-D capture helpers
@@ -58,8 +59,19 @@ Main files:
   loads pose JSON/TXT into structured Python objects
 - `run_pose_grasp_pipeline.py`
   one-command `capture -> mask -> pose -> optional grasp`
+
+### `segmentation/`
+
+Contains the neural segmentation layer used before FoundationPose.
+
+Main files:
+
 - `run_yolo_seg_mask.py`
-  one-frame YOLO-seg mask generation helper based on official Ultralytics
+  one-frame YOLO-seg mask generation
+- `train_yolo_seg.py`
+  custom YOLO-seg training entrypoint
+- `datasets/glasses_case_box_seg_example.yaml`
+  example dataset config for a custom glasses case class
 
 ### `grasp/`
 
@@ -300,6 +312,19 @@ Effect:
 - run YOLO-seg first to produce `mask.png`
 - pass that mask into FoundationPose
 - write the pose result into the runtime directory
+
+### Train a custom YOLO-seg model
+
+```bash
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/train_yolo_seg.py \
+  --data /home/rm/Long_sequence_tasks/vision_grasp/segmentation/datasets/glasses_case_box_seg_example.yaml \
+  --model /home/rm/yolov8n-seg.pt \
+  --epochs 100 \
+  --imgsz 640 \
+  --batch 8 \
+  --device 0 \
+  --name glasses_case_box_seg
+```
 
 ### Real pose grasp from an existing pose file
 

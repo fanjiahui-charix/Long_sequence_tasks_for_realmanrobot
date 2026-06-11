@@ -1,0 +1,10 @@
+# Example dataset YAML for a custom YOLO-seg glasses case model.
+# Replace the root path below with the real dataset directory on your machine.
+
+path: /home/rm/Long_sequence_tasks/vision_grasp/segmentation/datasets/glasses_case_box
+train: images/train
+val: images/val
+
+names:
+  0: glasses_case_box
+

@@ -23,10 +23,12 @@ integration layer responsible for:
   one-frame inference entrypoint
 - `run_foundationpose_single.sh`
   conda wrapper for the inference entrypoint
-- `run_yolo_seg_mask.py`
-  official Ultralytics YOLO-seg mask generator for pipeline use
 - `run_pose_grasp_pipeline.py`
   unified `capture -> mask -> FoundationPose -> optional grasp` command
+
+YOLO-seg now lives in:
+
+- `/home/rm/Long_sequence_tasks/vision_grasp/segmentation/`
 
 ## Recommended Usage
 
@@ -77,13 +79,26 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
 ### Segmentation-only smoke test
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_yolo_seg_mask.py \
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/run_yolo_seg_mask.py \
   --rgb /home/rm/Long_sequence_tasks/vision_grasp/runtime/<run_id>/capture/rgb.png \
   --output-mask /tmp/yolo_seg_mask.png \
   --output-vis /tmp/yolo_seg_mask_vis.png \
   --output-json /tmp/yolo_seg_result.json \
-  --weights yolov8n-seg.pt \
+  --weights /home/rm/yolov8n-seg.pt \
   --label person
+```
+
+### Train a custom YOLO-seg model
+
+```bash
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/train_yolo_seg.py \
+  --data /home/rm/Long_sequence_tasks/vision_grasp/segmentation/datasets/glasses_case_box_seg_example.yaml \
+  --model /home/rm/yolov8n-seg.pt \
+  --epochs 100 \
+  --imgsz 640 \
+  --batch 8 \
+  --device 0 \
+  --name glasses_case_box_seg
 ```
 
 ## Notes About Models

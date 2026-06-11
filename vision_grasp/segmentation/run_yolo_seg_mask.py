@@ -150,3 +150,4 @@ def _select_instance(result, image_shape, *, target_label: str | None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

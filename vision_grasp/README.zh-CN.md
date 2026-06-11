@@ -18,6 +18,7 @@
 ```text
 vision_grasp/
   foundationpose/    内部 FoundationPose 模块
+  segmentation/      YOLO-seg 分割推理与训练工具
   integration/       FoundationPose 与机器人之间的集成层
   grasp/             机械臂与末端执行器执行层
   camera/            RGB / RGB-D 采集工具
@@ -58,8 +59,19 @@ vision_grasp/
   读取 pose JSON/TXT 并转成结构化对象
 - `run_pose_grasp_pipeline.py`
   一条命令完成 `capture -> mask -> pose -> 可选抓取`
+
+### `segmentation/`
+
+FoundationPose 前面的神经网络分割层。
+
+主要文件：
+
 - `run_yolo_seg_mask.py`
-  基于官方 Ultralytics 的单帧 YOLO-seg 掩码生成脚本
+  单帧 YOLO-seg 分割脚本
+- `train_yolo_seg.py`
+  自定义 YOLO-seg 训练入口
+- `datasets/glasses_case_box_seg_example.yaml`
+  眼镜盒自定义类别的数据集配置示例
 
 ### `grasp/`
 
@@ -303,6 +315,19 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
 - 用 YOLO-seg 生成 `mask.png`
 - 再把这个 mask 交给 FoundationPose
 - 最终把位姿结果写到 runtime 目录
+
+### 训练自己的 YOLO-seg 模型
+
+```bash
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/train_yolo_seg.py \
+  --data /home/rm/Long_sequence_tasks/vision_grasp/segmentation/datasets/glasses_case_box_seg_example.yaml \
+  --model /home/rm/yolov8n-seg.pt \
+  --epochs 100 \
+  --imgsz 640 \
+  --batch 8 \
+  --device 0 \
+  --name glasses_case_box_seg
+```
 
 ### 从已有 pose 文件执行真实抓取
 

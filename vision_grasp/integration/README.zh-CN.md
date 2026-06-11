@@ -23,10 +23,12 @@
   单帧推理入口
 - `run_foundationpose_single.sh`
   单帧推理的 conda 包装脚本
-- `run_yolo_seg_mask.py`
-  基于官方 Ultralytics 的 YOLO-seg 掩码生成脚本
 - `run_pose_grasp_pipeline.py`
   统一的 `capture -> mask -> FoundationPose -> 可选抓取` 入口
+
+YOLO-seg 相关代码现在集中放在：
+
+- `/home/rm/Long_sequence_tasks/vision_grasp/segmentation/`
 
 ## 推荐用法
 
@@ -77,13 +79,26 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
 ### 只跑一次 YOLO-seg 分割
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_yolo_seg_mask.py \
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/run_yolo_seg_mask.py \
   --rgb /home/rm/Long_sequence_tasks/vision_grasp/runtime/<run_id>/capture/rgb.png \
   --output-mask /tmp/yolo_seg_mask.png \
   --output-vis /tmp/yolo_seg_mask_vis.png \
   --output-json /tmp/yolo_seg_result.json \
-  --weights yolov8n-seg.pt \
+  --weights /home/rm/yolov8n-seg.pt \
   --label person
+```
+
+### 训练自己的 YOLO-seg 模型
+
+```bash
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/train_yolo_seg.py \
+  --data /home/rm/Long_sequence_tasks/vision_grasp/segmentation/datasets/glasses_case_box_seg_example.yaml \
+  --model /home/rm/yolov8n-seg.pt \
+  --epochs 100 \
+  --imgsz 640 \
+  --batch 8 \
+  --device 0 \
+  --name glasses_case_box_seg
 ```
 
 ## 模型说明

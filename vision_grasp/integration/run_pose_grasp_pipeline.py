@@ -21,7 +21,7 @@ ROS_SETUP_SCRIPTS = (
 )
 CAPTURE_SCRIPT = FOUNDATIONPOSE_ROOT / "capture_object_rgbd.py"
 RAW_RGBD_CAPTURE_HELPER = VISION_GRASP_DIR / "camera" / "capture_rgbd_frame.py"
-YOLO_SEG_RUNNER = VISION_GRASP_DIR / "integration" / "run_yolo_seg_mask.py"
+YOLO_SEG_RUNNER = VISION_GRASP_DIR / "segmentation" / "run_yolo_seg_mask.py"
 FOUNDATIONPOSE_RUNNER = VISION_GRASP_DIR / "integration" / "run_foundationpose_single.sh"
 GRASP_RUNNER = VISION_GRASP_DIR / "grasp" / "run_grasp.py"
 DEFAULT_CONFIG_PATH = VISION_GRASP_DIR / "configs" / "grasp_config.example.yaml"
