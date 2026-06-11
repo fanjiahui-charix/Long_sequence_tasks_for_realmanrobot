@@ -66,6 +66,8 @@ FoundationPose 前面的神经网络分割层。
 
 主要文件：
 
+- `capture_seg_dataset.py`
+  交互式 RGB-D 分割数据采集脚本
 - `run_yolo_seg_mask.py`
   单帧 YOLO-seg 分割脚本
 - `train_yolo_seg.py`
@@ -327,6 +329,19 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
   --batch 8 \
   --device 0 \
   --name glasses_case_box_seg
+```
+
+### 在机器人上采分割训练数据
+
+```bash
+bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+source /opt/ros/noetic/setup.bash
+source ~/lt_grasp_ws/devel/setup.bash
+
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/capture_seg_dataset.py \
+  --camera-name camera_middle \
+  --dataset-name glasses_case_box \
+  --mode snapshot
 ```
 
 ### 从已有 pose 文件执行真实抓取

@@ -22,6 +22,8 @@
   单帧分割推理脚本
 - `train_yolo_seg.py`
   自定义 YOLO-seg 训练入口
+- `capture_seg_dataset.py`
+  交互式 RGB-D 数据采集脚本，支持按键抓图和录视频
 - `datasets/glasses_case_box_seg_example.yaml`
   眼镜盒数据集配置模板
 - `README.md`

@@ -23,6 +23,8 @@ This is the right place to look when you want to:
   one-frame segmentation inference
 - `train_yolo_seg.py`
   training entrypoint for a custom YOLO-seg model
+- `capture_seg_dataset.py`
+  interactive RGB-D dataset collection tool with snapshot and video modes
 - `datasets/glasses_case_box_seg_example.yaml`
   example dataset config for a custom glasses case class
 
@@ -62,6 +64,58 @@ Outputs:
 - binary `mask.png`
 - visualization image with the chosen instance
 - JSON metadata for debugging
+
+## Dataset Capture on the Robot
+
+This repository also includes an interactive dataset capture tool:
+
+```bash
+bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+source /opt/ros/noetic/setup.bash
+source ~/lt_grasp_ws/devel/setup.bash
+
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/capture_seg_dataset.py \
+  --camera-name camera_middle \
+  --dataset-name glasses_case_box \
+  --mode snapshot
+```
+
+Two modes are supported:
+
+- `--mode snapshot`
+  open a live preview and save RGB-D frames with key presses
+- `--mode video`
+  record RGB video and optionally auto-extract frames after recording stops
+
+Keyboard:
+
+- `s` or `Space`
+  save current RGB-D snapshot
+- `r`
+  start or stop recording in `video` mode
+- `h`
+  print help
+- `q` or `Esc`
+  quit
+
+Output layout:
+
+```text
+vision_grasp/segmentation/datasets/<dataset_name>/
+  raw/
+    <session_name>/
+      camera/
+        cam_K.txt
+        camera_info.json
+      snapshots/
+        rgb/
+        depth/
+        meta/
+      videos/
+        rgb_video_000001.mp4
+        meta/
+        extracted_frames/
+```
 
 ## Pipeline Command
 
@@ -127,4 +181,3 @@ Once your training finishes, the normal path is:
 2. point `--seg-weights` at that file
 3. set `--seg-label glasses_case_box`
 4. rerun the visual grasp pipeline
-

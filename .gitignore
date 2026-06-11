@@ -36,5 +36,7 @@ vision_grasp/**/*.pth
 vision_grasp/**/*.onnx
 vision_grasp/**/*.engine
 vision_grasp/**/*.trt
+vision_grasp/segmentation/datasets/*/
+!vision_grasp/segmentation/datasets/*.yaml
 **/*.bak_*
 **/__pycache__/

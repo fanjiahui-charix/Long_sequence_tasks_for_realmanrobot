@@ -66,6 +66,8 @@ Contains the neural segmentation layer used before FoundationPose.
 
 Main files:
 
+- `capture_seg_dataset.py`
+  interactive RGB-D dataset capture tool for segmentation training
 - `run_yolo_seg_mask.py`
   one-frame YOLO-seg mask generation
 - `train_yolo_seg.py`
@@ -324,6 +326,19 @@ Effect:
   --batch 8 \
   --device 0 \
   --name glasses_case_box_seg
+```
+
+### Capture segmentation training data on the robot
+
+```bash
+bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+source /opt/ros/noetic/setup.bash
+source ~/lt_grasp_ws/devel/setup.bash
+
+/usr/bin/python3 /home/rm/Long_sequence_tasks/vision_grasp/segmentation/capture_seg_dataset.py \
+  --camera-name camera_middle \
+  --dataset-name glasses_case_box \
+  --mode snapshot
 ```
 
 ### Real pose grasp from an existing pose file
