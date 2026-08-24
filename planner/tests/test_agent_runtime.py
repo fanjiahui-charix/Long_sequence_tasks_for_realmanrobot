@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict, deque
+from types import SimpleNamespace
 
 from planner.agent_runtime.contracts import default_contracts
 from planner.agent_runtime.executor import SkillExecutor
@@ -24,6 +25,65 @@ def test_agent_runtime_is_available_from_public_package():
     from planner.agent_runtime import AgentRuntime as PublicAgentRuntime
 
     assert PublicAgentRuntime is AgentRuntime
+
+
+def test_cli_builds_only_agent_runtime(tmp_path, monkeypatch):
+    from planner.examples.run_long_task import build_runtime
+
+    monkeypatch.setenv("LONG_TASKS_NAV_BACKEND", "mock")
+    monkeypatch.setenv("LONG_TASKS_PERCEPTION_BACKEND", "mock")
+    monkeypatch.setenv("LONG_TASKS_MANIPULATION_BACKEND", "mock")
+    args = SimpleNamespace(
+        mission_id="cli-test",
+        mission_timeout=60.0,
+        max_total_actions=10,
+        max_replans=0,
+        failure_repeat_threshold=3,
+    )
+    plan = MissionPlan.from_dict(
+        {
+            "goal": {"type": "at_location", "location": "pointb"},
+            "steps": [
+                {"id": "s1", "skill": "navigate_to", "args": {"target": "pointb"}}
+            ],
+        }
+    )
+
+    runtime = build_runtime(
+        plan,
+        args,
+        trace_path=tmp_path / "cli.jsonl",
+        planner_client=None,
+    )
+
+    assert isinstance(runtime, AgentRuntime)
+    assert runtime.budgets.max_total_actions == 10
+    runtime.trace.close()
+
+
+def test_cli_source_has_no_legacy_executor_path():
+    from pathlib import Path
+    import planner.examples.run_long_task as entry
+
+    source = Path(entry.__file__).read_text(encoding="utf-8")
+    assert "TaskExecutor" not in source
+    assert "--runtime" not in source
+    assert "legacy" not in source.lower()
+
+
+def test_no_python_entrypoint_references_task_executor():
+    from pathlib import Path
+
+    planner_root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for path in planner_root.rglob("*.py"):
+        if "tests" in path.parts:
+            continue
+        if "TaskExecutor" in path.read_text(encoding="utf-8") or "planner.executor" in path.read_text(
+            encoding="utf-8"
+        ):
+            offenders.append(path.relative_to(planner_root).as_posix())
+    assert offenders == []
 
 
 class ScriptedSkill:

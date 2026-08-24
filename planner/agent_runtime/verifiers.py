@@ -273,15 +273,16 @@ class GoalVerifier:
         state: WorldState,
         observation: dict[str, Any],
     ) -> VerificationResult:
+        del state
         goal_type = goal.get("type")
         if goal_type == "holding_object":
             expected = goal.get("object")
-            observed = observation.get("holding_object", state.holding_object)
+            observed = observation.get("holding_object")
             if observed == expected:
                 return VerificationResult.verified(observation)
         elif goal_type in {"at", "at_location"}:
             expected = goal.get("location") or goal.get("target")
-            observed = observation.get("current_location", state.current_location)
+            observed = observation.get("current_location")
             if observed == expected:
                 return VerificationResult.verified(observation)
         elif goal_type in {"placed_object", "object_placed"}:

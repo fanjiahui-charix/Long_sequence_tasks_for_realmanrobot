@@ -176,3 +176,15 @@ def test_goal_verifier_requires_current_holding_evidence():
 
     assert result.status is VerificationStatus.FAILED
     assert result.failure_code is FailureCode.GOAL_NOT_SATISFIED
+
+
+def test_goal_verifier_does_not_fall_back_to_stale_committed_state():
+    state = WorldState(holding_object="cup", facts={"Holding(cup)"})
+
+    result = GoalVerifier().verify(
+        {"type": "holding_object", "object": "cup"},
+        state,
+        {"observation_error": "gripper feedback unavailable"},
+    )
+
+    assert result.status is VerificationStatus.FAILED
