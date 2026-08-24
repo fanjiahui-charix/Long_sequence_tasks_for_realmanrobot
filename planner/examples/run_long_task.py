@@ -14,7 +14,6 @@ sys.path.insert(0, str(ROOT))
 from navigation.chassis_client import ChassisNavigationClient, ChassisNavigationError
 from planner.executor.task_executor import TaskExecutor
 from planner.llm.qwen_client import QwenPlannerClient
-from planner.skills.registry import build_default_skill_registry
 from vision_grasp.camera.ros_image_capture import RosImageCaptureError, capture_rgb_image
 
 
@@ -24,19 +23,10 @@ def _patch_plan(plan: dict, pick_mode: str, task: str, nav_backend: str) -> dict
     explicit_marker = _detect_explicit_marker(task, nav_backend)
     if explicit_marker:
         patched["goal"] = task
-        patched["steps"] = [
-            {
-                "id": "s1",
-                "skill": "navigate_to",
-                "args": {
-                    "marker": explicit_marker,
-                },
-            }
-        ]
-        patched["failure_policy"] = {
-            "on_failure": "abort",
-            "reason": f"Could not navigate to marker {explicit_marker}.",
-        }
+        for step in patched.get("steps", []):
+            if step.get("skill") == "navigate_to":
+                step.setdefault("args", {})["marker"] = explicit_marker
+                break
 
     if pick_mode == "as_planned":
         return patched
@@ -85,6 +75,8 @@ def _detect_explicit_marker(task: str, nav_backend: str) -> str | None:
 
 
 def main() -> None:
+    from planner.skills.registry import build_default_skill_registry
+
     parser = argparse.ArgumentParser(
         description="Generate a long-sequence plan from one image and execute it in one command."
     )

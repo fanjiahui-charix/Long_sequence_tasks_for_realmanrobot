@@ -1,9 +1,8 @@
-import os
-
 from planner.agent_runtime.models import ExecStatus, FailureCode
+from planner.agent_runtime.protocol import extract_machine_result
 from planner.examples.run_long_task import _patch_plan
-from planner.examples.run_nav_grasp_json import _extract_machine_result
-from planner.skills.navigation_skill import AlignToTableSkill, LocateTableSkill
+from planner.skills.mock_backend import MockRobotBackend
+from planner.skills.navigation_skill import AlignToTableSkill, LocateTableSkill, NavigateToSkill
 from planner.skills.perception_skill import DetectObjectSkill, LookAtSkill
 
 
@@ -60,13 +59,38 @@ def test_mixed_log_stdout_extracts_final_json_result():
         '{"ok": true, "arm_ns": "r_arm"}\n'
     )
 
-    assert _extract_machine_result(stdout) == {"ok": True, "arm_ns": "r_arm"}
+    assert extract_machine_result(stdout) == {"ok": True, "arm_ns": "r_arm"}
 
 
 def test_extract_machine_result_rejects_log_only_output():
     try:
-        _extract_machine_result("[INFO] no result\n")
+        extract_machine_result("[INFO] no result\n")
     except RuntimeError as exc:
         assert "no JSON object" in str(exc)
     else:
         raise AssertionError("log-only stdout must not be accepted")
+
+
+def test_mock_navigation_separates_send_from_observe(monkeypatch):
+    monkeypatch.setenv("LONG_TASKS_NAV_BACKEND", "mock")
+    backend = MockRobotBackend()
+    skill = NavigateToSkill(mock_backend=backend)
+
+    result = skill.run(target="pointb")
+
+    assert result.data["command_accepted"] is True
+    assert "arrived" not in result.data
+    assert skill.observe(target="pointb")["arrived"] is True
+
+
+def test_mock_detect_produces_fresh_pose_without_fake_confidence(monkeypatch):
+    monkeypatch.setenv("LONG_TASKS_PERCEPTION_BACKEND", "mock")
+    backend = MockRobotBackend(clock=lambda: 12.0)
+    skill = DetectObjectSkill(mock_backend=backend)
+
+    assert skill.run(object="cup").ok
+    observation = skill.observe(object="cup")
+
+    assert observation["timestamp"] == 12.0
+    assert observation["confidence"] is None
+    assert observation["source"] == "mock"

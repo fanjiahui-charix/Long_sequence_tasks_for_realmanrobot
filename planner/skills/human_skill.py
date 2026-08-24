@@ -1,5 +1,7 @@
 from typing import Any
 
+from planner.agent_runtime.models import ExecStatus, FailureCode
+
 from .base import SkillResult
 
 
@@ -8,7 +10,11 @@ class AskHumanSkill:
 
     def run(self, **kwargs: Any) -> SkillResult:
         question = kwargs.get("question", "Need human clarification.")
-        return SkillResult(ok=False, data={"question": question}, error="human input required")
+        return SkillResult.rejected(
+            FailureCode.PRECONDITION_FAILED,
+            message="human input required",
+            data={"question": question},
+        )
 
 
 class AbortSkill:
@@ -16,5 +22,10 @@ class AbortSkill:
 
     def run(self, **kwargs: Any) -> SkillResult:
         reason = kwargs.get("reason", "Task aborted.")
-        return SkillResult(ok=False, data={"reason": reason}, error=reason)
+        return SkillResult(
+            status=ExecStatus.CANCELLED,
+            failure_code=FailureCode.PRECONDITION_FAILED,
+            message=str(reason),
+            data={"reason": reason},
+        )
 
