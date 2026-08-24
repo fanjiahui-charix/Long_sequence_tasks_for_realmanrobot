@@ -90,8 +90,10 @@ class ScriptedSkill:
     def __init__(self, name, results):
         self.name = name
         self.results = deque(results)
+        self.calls = 0
 
     def run(self, **_kwargs):
+        self.calls += 1
         if self.results:
             return self.results.popleft()
         return SkillResult.failed(FailureCode.INTERNAL_ERROR, message="script exhausted")
@@ -196,6 +198,47 @@ def test_retry_budget_prevents_loop():
 
     assert result.status is MissionStatus.ABORTED
     assert result.total_actions <= 3
+
+
+def test_stale_pose_blocks_pick_before_physical_execution():
+    plan = MissionPlan.from_dict(
+        {
+            "goal": {"type": "holding_object", "object": "cup"},
+            "steps": [
+                {"id": "s1", "skill": "pick_object", "args": {"object": "cup"}}
+            ],
+        }
+    )
+    state = WorldState(
+        facts={"HandEmpty", "ObjectLocalized(cup)"},
+        objects={
+            "cup": ObjectState(
+                name="cup",
+                visible=True,
+                pose=ObjectPoseState(
+                    pose=[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+                    frame_id="camera",
+                    timestamp=90.0,
+                    source="script",
+                    valid=True,
+                ),
+            )
+        },
+    )
+    pick = ScriptedSkill("pick_object", [SkillResult.succeeded()])
+    runtime = make_runtime(
+        plan=plan,
+        state=state,
+        skills={"pick_object": pick},
+        observation_provider=ScriptedObservationProvider({}),
+    )
+
+    result = runtime.run()
+
+    assert result.status is MissionStatus.ABORTED
+    assert result.failure.code is FailureCode.POSE_STALE
+    assert pick.calls == 0
+    assert state.completed_steps == []
 
 
 def test_final_goal_must_be_verified():

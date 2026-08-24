@@ -28,6 +28,7 @@ def test_patch_plan_preserves_remaining_steps(monkeypatch):
         "pick_object",
     ]
     assert patched["steps"][0]["args"]["marker"] == "pointc"
+    assert patched["steps"][0]["args"]["target"] == "pointc"
     assert patched["steps"][2]["args"]["mode"] == "pose_grasp"
 
 

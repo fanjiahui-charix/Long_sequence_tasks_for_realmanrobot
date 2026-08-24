@@ -36,7 +36,9 @@ def _patch_plan(plan: dict, pick_mode: str, task: str, nav_backend: str) -> dict
     if explicit_marker:
         for step in patched.get("steps", []):
             if step.get("skill") == "navigate_to":
-                step.setdefault("args", {})["marker"] = explicit_marker
+                step_args = step.setdefault("args", {})
+                step_args["target"] = explicit_marker
+                step_args["marker"] = explicit_marker
                 break
     if pick_mode != "as_planned":
         for step in patched.get("steps", []):
