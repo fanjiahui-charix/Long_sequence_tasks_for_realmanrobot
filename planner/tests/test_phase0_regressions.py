@@ -1,5 +1,6 @@
 from planner.agent_runtime.models import ExecStatus, FailureCode
 from planner.agent_runtime.protocol import extract_machine_result
+from planner.examples.run_nav_grasp_json import _extract_machine_result
 from planner.examples.run_long_task import _patch_plan
 from planner.skills.mock_backend import MockRobotBackend
 from planner.skills.navigation_skill import AlignToTableSkill, LocateTableSkill, NavigateToSkill
@@ -70,6 +71,12 @@ def test_extract_machine_result_rejects_log_only_output():
         assert "no JSON object" in str(exc)
     else:
         raise AssertionError("log-only stdout must not be accepted")
+
+
+def test_nav_grasp_runner_uses_shared_machine_result_protocol():
+    stdout = '[INFO] hand closed\n{"ok": true, "arm_ns": "r_arm"}\n'
+
+    assert _extract_machine_result(stdout) == extract_machine_result(stdout)
 
 
 def test_mock_navigation_separates_send_from_observe(monkeypatch):
