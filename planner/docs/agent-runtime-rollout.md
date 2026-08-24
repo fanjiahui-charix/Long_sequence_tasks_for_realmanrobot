@@ -29,11 +29,14 @@ changes and Windows worktree checkout artifacts were not included.
 | `9093a2d` | Closed-loop AgentRuntime state machine |
 | `dfb8b0b` | Sole CLI migration and legacy executor removal |
 | `b1ba4c5` | Stale-pose and explicit-marker acceptance closure |
+| `2869323` | Verified held-object requirement for placement |
+| `d537c3c` | Operator documentation and rollback ledger |
+| `2e9437b` | Mixed-log grasp runner machine-result integration |
 
 Inspect the exact sequence with:
 
 ```powershell
-git log --oneline --decorate eb1f25c..feat/closed-loop-agent-runtime-impl
+git log --oneline --decorate eb1f25c..feat/closed-loop-agent-runtime
 ```
 
 ## Rollback
