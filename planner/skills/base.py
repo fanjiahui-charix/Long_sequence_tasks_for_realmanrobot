@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
-@dataclass
-class SkillResult:
-    ok: bool
-    data: dict[str, Any] = field(default_factory=dict)
-    error: str | None = None
+from planner.agent_runtime.models import SkillResult
 
 
 class RobotSkill(Protocol):
     name: str
 
     def run(self, **kwargs: Any) -> SkillResult:
+        ...
+
+
+class ObservableSkill(RobotSkill, Protocol):
+    def observe(self, **kwargs: Any) -> dict[str, Any]:
         ...
