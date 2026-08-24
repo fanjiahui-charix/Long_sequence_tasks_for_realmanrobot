@@ -1,212 +1,114 @@
-# Planner 中文说明
+# 闭环 Planner 与 Agent Runtime
+
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-`planner/` 是长序列任务里的推理与执行层，负责把任务文本和场景上下文转成结构化计划，并把计划交给导航与操作技能执行。
+`planner/` 现在只有一套执行架构：`AgentRuntime`。技能返回成功不代表步骤完成；
+系统必须重新观察世界、验证 Skill Contract 的后置条件，验证通过后才能提交状态。
 
-英文版说明见：`README.md`
-
-## 核心功能
-
-这个模块主要解决：
-
-- 文本到计划的生成
-- 计划格式校验
-- 基于技能的任务执行
-- 在接真实硬件前先用 mock 做安全验证
-
-## 代码结构
+## 执行闭环
 
 ```text
-planner/
-  configs/         运行配置、场景模板、技能配置、后端配置
-  examples/        示例脚本和主入口
-  executor/        计划执行与校验
-  llm/             Qwen 客户端、schema、prompt 构造
-  skills/          导航、感知、操作、人机交互技能
-  tests/           轻量测试
+Qwen Mission Plan（只表达意图）
+        |
+Schema + Contract 语义 dry-run
+        |
+PRECHECK -> EXECUTE -> OBSERVE/VERIFY -> COMMIT
+                    |        失败
+                    v
+          确定性恢复 -> 有限安全重试
+                    |
+          基于已验证状态修复剩余后缀
+                    |
+                ABORT/HUMAN
 ```
 
-### 文件职责
+timeout、重试次数、verifier、恢复和安全规则全部由代码中的 Skill Contract 管理，
+不允许 Qwen 自行定义。
 
-- `examples/run_long_task.py`
-  一条命令跑完整长任务的主示例
-- `examples/run_qwen_planner_demo.py`
-  输入图像和任务文本，生成计划
-- `examples/run_executor_demo.py`
-  从已有 plan JSON 执行
-- `executor/task_executor.py`
-  逐步执行生成后的任务计划
-- `llm/qwen_client.py`
-  规划模型客户端
-- `llm/prompt_builder.py`
-  负责拼装提示词
-- `skills/navigation_skill.py`
-  封装导航动作
-- `skills/perception_skill.py`
-  封装感知结果，包括 FoundationPose pose 文件读取
-- `skills/manipulation_skill.py`
-  封装抓取与手部动作
+## 主要模块
 
-## 运行环境
+- `agent_runtime/models.py`：计划、执行、验证、失败和任务结果类型。
+- `agent_runtime/state.py`：带时间戳的物体状态和唯一事实源 `WorldState`。
+- `agent_runtime/contracts.py`：前置条件、效果、超时、重试模式和 verifier。
+- `agent_runtime/semantic_validator.py`：执行前符号化 dry-run。
+- `agent_runtime/executor.py`：有界技能调用和异常归一化。
+- `agent_runtime/verifiers.py`：导航、感知、抓取、放置和最终目标验证。
+- `agent_runtime/recovery.py`：确定性恢复、预算和重复失败检测。
+- `agent_runtime/replanner.py`：只修复未提交计划后缀。
+- `agent_runtime/trace.py`：逐事件 flush 的 JSONL trajectory。
+- `agent_runtime/runtime.py`：显式闭环状态机。
+- `skills/`：Mock、TCP、ROS、FoundationPose 和操作适配器。
 
-- 规划本体：
-  `python3`
-- 使用 ROS 抓取时：
-  先 source 对应 ROS 工作空间
+旧 `TaskExecutor` 路径已经删除。
 
-## 常用命令
+## Mock 验收
 
-### 根据图像生成计划
+以下命令不需要网络、ROS、相机、底盘或机械臂：
+
+```powershell
+python -m pytest planner/tests -q
+python -m compileall -q planner
+```
+
+测试覆盖到达验证、缺失/过期位姿、物理结果 UNKNOWN、Verified Commit、确定性
+恢复、后缀修复、防死循环预算、最终目标复验、JSON 协议、轨迹记录，以及完整的
+故障注入 episode。
+
+## 运行任务
+
+全 Mock：
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_qwen_planner_demo.py \
+python3 planner/examples/run_long_task.py \
   --image /path/to/lab_scene.jpg \
-  --task "go to table 2 and check whether there is an apple"
+  --task "去 pointb 抓取眼镜盒，然后回到 pointa" \
+  --nav-backend mock \
+  --perception-backend mock \
+  --manipulation-backend mock \
+  --trajectory runtime/trajectories/mock-mission.jsonl
 ```
 
-作用：
-
-- 调用 LLM 规划器
-- 输出结构化长序列计划
-
-### 执行已有计划
+后续实体联调入口：
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_executor_demo.py \
-  --plan /home/rm/Long_sequence_tasks/planner/examples/sample_plan.json
-```
-
-作用：
-
-- 读取计划文件
-- 调用执行器和技能层执行
-
-### 完整 mock demo
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_full_mock_demo.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and inspect the table"
-```
-
-作用：
-
-- 端到端干跑
-- 不会真实驱动底盘和抓取硬件
-
-### 一条命令跑长任务
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and pick the mustard bottle" \
+python3 planner/examples/run_long_task.py \
+  --camera-name camera_middle \
+  --task "去 pointb 抓取眼镜盒" \
   --nav-backend tcp \
+  --perception-backend foundationpose \
   --manipulation-backend ros \
   --pick-mode pose_grasp
 ```
 
-作用：
+任务硬预算：
 
-- 先生成任务计划
-- 用选定导航后端执行移动
-- 用选定操作后端执行抓取
+- `--mission-timeout`：任务时限，默认 900 秒。
+- `--max-total-actions`：最大物理/恢复动作数，默认 50。
+- `--max-replans`：最大后缀修复次数，默认 3。
+- `--failure-repeat-threshold`：同状态同失败升级阈值，默认 3。
+- `--trajectory`：指定 JSONL 轨迹文件。
 
-## 后端说明
+没有 Qwen API key 时，确定性局部恢复仍可运行；需要 LLM 修复后缀时会明确终止。
 
-### 导航后端
+## 状态与安全约束
 
-- `mock`
-  不动真实底盘
-- `tcp`
-  直接控制底盘
-- `ros`
-  通过 ROS 话题路径控制
+- `SkillResult` 只表示执行器对命令执行情况的判断。
+- `VerificationResult` 表示真实观察是否满足后置条件。
+- 只有 verifier 通过后才能修改 `WorldState`。
+- 物体位姿包含 frame、timestamp、source、valid 和可空 confidence。
+- 有物理副作用的 `UNKNOWN` 禁止盲目重试。
+- Replan 不得修改或重复已提交步骤。
+- 所有步骤完成后仍要重新观察并验证最终目标。
 
-### 操作后端
+## 轨迹与回退
 
-- `mock`
-  不动真实机械臂
-- `ros`
-  执行真实末端控制和 pose grasp
+JSONL 事件记录 mission、计划版本、步骤、attempt、执行结果、验证证据、恢复决策、
+状态快照和稳定哈希。每条事件立即落盘，中断后仍可解析。默认目录为
+`runtime/trajectories/`。
 
-## 关键参数
+本轮以完整 Mock 故障注入闭环为验收标准。TCP 导航已有真实状态观察；ROS 导航
+状态、真实抓取和放置证据将在实体联调时接入。证据不足时当前实现会返回未知或失败，
+不会伪造成功。
 
-### `run_long_task.py`
-
-- `--image`
-  场景图像路径
-- `--camera-name`
-  不用本地图像，而是从 ROS 相机直接采当前画面
-- `--task`
-  自然语言任务描述
-- `--nav-backend`
-  `mock`、`tcp` 或 `ros`
-- `--manipulation-backend`
-  `mock` 或 `ros`
-- `--pick-mode`
-  `as_planned`、`close_only`、`pick_demo`、`pose_grasp`
-- `--verbose`
-  打印更详细的规划和执行信息
-
-## 配置文件
-
-- `configs/lab_scene_template.yaml`
-  场景模板
-- `configs/nav_targets.yaml`
-  命名导航目标
-- `configs/skills.yaml`
-  技能注册和技能元数据
-- `configs/llm.yaml`
-  规划模型设置
-
-操作模块当前使用统一抓取配置：
-
-- `/home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml`
-
-如果要替换：
-
-```bash
-export LONG_TASKS_GRASP_CONFIG=/custom/path/grasp_config.yaml
-```
-
-## 推荐使用方式
-
-### 完全干跑
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc" \
-  --nav-backend mock \
-  --manipulation-backend mock
-```
-
-### 真实底盘，假抓取
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc" \
-  --nav-backend tcp \
-  --manipulation-backend mock
-```
-
-### 真实底盘，真实抓取
-
-先执行项目 bringup：
-
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-```
-
-然后执行：
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --camera-name camera_middle \
-  --task "go to pointc and pick the mustard bottle" \
-  --nav-backend tcp \
-  --manipulation-backend ros \
-  --pick-mode pose_grasp \
-  --verbose
-```
+阶段提交、回退命令和实体联调清单见
+[agent-runtime-rollout.md](./docs/agent-runtime-rollout.md)。

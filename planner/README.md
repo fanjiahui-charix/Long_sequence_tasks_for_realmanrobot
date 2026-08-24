@@ -1,212 +1,129 @@
-# Planner
+# Closed-Loop Planner and Agent Runtime
+
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-`planner/` is the long-sequence reasoning and execution layer. It converts a
-task description plus scene context into a structured plan, and it can execute
-that plan through navigation and manipulation backends.
+`planner/` turns a structured mission into verified robot state transitions. It
+uses one execution architecture: `AgentRuntime`. A skill returning success is
+not enough to complete a step; the runtime observes the world, verifies the
+contract postcondition, and commits the effect only after verification.
 
-## Core Purpose
-
-Use this module when you need:
-
-- text-to-plan generation
-- plan validation
-- skill-based task execution
-- a safe mock mode before connecting to real hardware
-
-## Architecture
+## Execution Model
 
 ```text
-planner/
-  configs/         Runtime config, scene templates, skill and backend settings
-  examples/        Runnable demos and entrypoints
-  executor/        Plan execution and validation
-  llm/             Qwen client, schemas, prompt builder
-  skills/          Navigation, perception, manipulation, human-interaction skills
-  tests/           Lightweight planner validation tests
+Qwen mission plan (intent only)
+        |
+schema + contract semantic validation
+        |
+PRECHECK -> EXECUTE -> OBSERVE/VERIFY -> COMMIT
+                    |        failure
+                    v
+       deterministic recovery -> bounded retry
+                    |
+       verified-state suffix replanning
+                    |
+                ABORT/HUMAN
 ```
 
-### File Responsibilities
+Runtime safety policy is code-owned. Qwen cannot define timeouts, retry budgets,
+verifiers, recovery actions, or safety thresholds.
 
-- `examples/run_long_task.py`
-  one-command long-task demo runner
-- `examples/run_qwen_planner_demo.py`
-  plan generation from one image and one task string
-- `examples/run_executor_demo.py`
-  executor test from a saved plan JSON
-- `executor/task_executor.py`
-  executes the generated plan step by step
-- `llm/qwen_client.py`
-  model client for Qwen-compatible APIs
-- `llm/prompt_builder.py`
-  assembles the planner prompt
-- `skills/navigation_skill.py`
-  wraps navigation actions
-- `skills/perception_skill.py`
-  wraps perception results, including FoundationPose pose-file loading
-- `skills/manipulation_skill.py`
-  wraps grasp and hand actions
+## Main Components
 
-## Environments
+- `agent_runtime/models.py`: typed execution, verification, failure, plan, and
+  mission results.
+- `agent_runtime/state.py`: timestamped object state and the verified
+  `WorldState` fact source.
+- `agent_runtime/contracts.py`: trusted preconditions, effects, retry modes,
+  timeouts, and verifiers.
+- `agent_runtime/semantic_validator.py`: symbolic dry-run before execution.
+- `agent_runtime/executor.py`: bounded skill invocation and result normalization.
+- `agent_runtime/verifiers.py`: independent navigation, perception, grasp,
+  placement, and final-goal verification.
+- `agent_runtime/recovery.py`: deterministic recovery, attempt limits, mission
+  budgets, and repeated-failure detection.
+- `agent_runtime/replanner.py`: Qwen repair of the uncommitted suffix only.
+- `agent_runtime/trace.py`: flush-on-event JSONL trajectories.
+- `agent_runtime/runtime.py`: the explicit runtime state machine.
+- `skills/`: mock, TCP, ROS, FoundationPose, and manipulation adapters.
 
-- Planner itself:
-  `python3`
-- When using ROS manipulation:
-  source the ROS workspace first
+The former `TaskExecutor` path has been removed.
 
-## Main Demo Commands
+## Mock Acceptance
 
-### Generate a plan from an image
+The deterministic suite requires no network, ROS, camera, chassis, or arm:
+
+```powershell
+python -m pytest planner/tests -q
+python -m compileall -q planner
+```
+
+It covers navigation arrival verification, missing and stale poses, ambiguous
+physical outcomes, verified commits, deterministic recovery, suffix repair,
+loop budgets, final-goal verification, JSON protocol extraction, trajectory
+events, and a complete injected-failure episode.
+
+## Run a Mission
+
+Generate a plan with Qwen and run all adapters in mock mode:
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_qwen_planner_demo.py \
+python3 planner/examples/run_long_task.py \
   --image /path/to/lab_scene.jpg \
-  --task "go to table 2 and check whether there is an apple"
+  --task "go to pointb, pick the glasses case, and return to pointa" \
+  --nav-backend mock \
+  --perception-backend mock \
+  --manipulation-backend mock \
+  --trajectory runtime/trajectories/mock-mission.jsonl
 ```
 
-Effect:
-
-- calls the LLM planner
-- writes or prints a structured long-sequence plan
-
-### Execute a saved plan
+Real adapter selection for the later hardware session:
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_executor_demo.py \
-  --plan /home/rm/Long_sequence_tasks/planner/examples/sample_plan.json
-```
-
-Effect:
-
-- loads a plan file
-- runs it through the executor and registered skills
-
-### Full mock demo
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_full_mock_demo.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and inspect the table"
-```
-
-Effect:
-
-- end-to-end dry run
-- no real chassis or grasp hardware is commanded
-
-### One-command long task
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and pick the mustard bottle" \
+python3 planner/examples/run_long_task.py \
+  --camera-name camera_middle \
+  --task "go to pointb and pick the glasses case" \
   --nav-backend tcp \
+  --perception-backend foundationpose \
   --manipulation-backend ros \
   --pick-mode pose_grasp
 ```
 
-Effect:
+Important mission limits:
 
-- plans the task
-- executes navigation through the chosen backend
-- executes grasp through the chosen manipulation backend
+- `--mission-timeout` (default `900` seconds)
+- `--max-total-actions` (default `50`)
+- `--max-replans` (default `3`)
+- `--failure-repeat-threshold` (default `3`)
+- `--trajectory` for an explicit JSONL output path
 
-## Backends
+If no Qwen API key is available, the runtime still performs deterministic local
+recovery but aborts cleanly when an LLM suffix repair is required.
 
-### Navigation backend
+## Verified State Rules
 
-- `mock`
-  no hardware motion
-- `tcp`
-  direct chassis control
-- `ros`
-  ROS topic path
+- `SkillResult` reports what the executor knows about command execution.
+- `VerificationResult` reports whether observed reality satisfies the expected
+  postcondition.
+- `WorldState` changes only through verified commit.
+- Object poses carry frame, timestamp, source, validity, and optional confidence.
+- A side-effecting `UNKNOWN` cannot be blindly retried.
+- Replanning cannot change committed steps or repeat committed step IDs.
+- Mission success requires a fresh final-goal observation.
 
-### Manipulation backend
+## Trajectory Records
 
-- `mock`
-  no hardware motion
-- `ros`
-  real end effector and pose-grasp execution
+Each JSONL event may include mission/plan version, step, attempt, phase, skill
+result, verification evidence, recovery decision, and the verified state
+snapshot/hash. Events are flushed immediately and remain parseable after an
+interruption. The default directory is `runtime/trajectories/`.
 
-## Key Parameters
+## Hardware Integration Status
 
-### `run_long_task.py`
+This delivery is accepted against the complete Mock fault-injection loop. TCP
+navigation exposes real status observations. The ROS navigation status adapter
+and real grasp/place evidence adapters intentionally return insufficient
+evidence until they are connected during the physical robot session; they do
+not fabricate success.
 
-- `--image`
-  scene image path
-- `--camera-name`
-  capture current image from ROS instead of using a saved file
-- `--task`
-  natural-language task
-- `--nav-backend`
-  `mock`, `tcp`, or `ros`
-- `--manipulation-backend`
-  `mock` or `ros`
-- `--pick-mode`
-  `as_planned`, `close_only`, `pick_demo`, or `pose_grasp`
-- `--verbose`
-  print extra planner and executor information
-
-## Config Files
-
-- `configs/lab_scene_template.yaml`
-  scene structure template
-- `configs/nav_targets.yaml`
-  named navigation targets
-- `configs/skills.yaml`
-  enabled skill registry and skill metadata
-- `configs/llm.yaml`
-  planner model settings
-
-Manipulation now uses the canonical config in:
-
-- `/home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml`
-
-You can override it with:
-
-```bash
-export LONG_TASKS_GRASP_CONFIG=/custom/path/grasp_config.yaml
-```
-
-## Safe Usage Patterns
-
-### Dry run
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc" \
-  --nav-backend mock \
-  --manipulation-backend mock
-```
-
-### Real base, fake grasp
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc" \
-  --nav-backend tcp \
-  --manipulation-backend mock
-```
-
-### Real base, real pose grasp
-
-Before this mode, run the project bringup:
-
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-```
-
-Then run:
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --camera-name camera_middle \
-  --task "go to pointc and pick the mustard bottle" \
-  --nav-backend tcp \
-  --manipulation-backend ros \
-  --pick-mode pose_grasp \
-  --verbose
-```
+See [agent-runtime-rollout.md](./docs/agent-runtime-rollout.md) for phase commits,
+rollback commands, and the hardware integration checklist.
