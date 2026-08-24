@@ -28,9 +28,16 @@ DEFAULT_SYSTEM_PROMPT = """
 - ask_human(question): 信息不足时询问人
 - abort(reason): 无法安全执行时终止
 
+Plan 只表达任务意图和顺序。不要输出 timeout、retry、max_attempts、verifier、
+success_criteria、recovery 或 failure_policy；这些运行时安全策略由代码中的
+Skill Contract 决定。
+
 输出 JSON 格式:
 {
-  "goal": "...",
+  "plan_id": "p001",
+  "version": 1,
+  "parent_version": null,
+  "goal": {"type": "holding_object", "object": "目标物体"},
   "scene_understanding": {
     "tables": [
       {"label": "1", "visible": true, "relative_position": "..."}
@@ -42,10 +49,10 @@ DEFAULT_SYSTEM_PROMPT = """
     {
       "id": "s1",
       "skill": "...",
-      "args": {}
+      "args": {},
+      "depends_on": []
     }
-  ],
-  "failure_policy": {}
+  ]
 }
 """.strip()
 
