@@ -89,8 +89,9 @@ class WorldState:
         produced: set[str],
         invalidated: set[str],
         updates: dict[str, Any] | None = None,
+        record_step: bool = True,
     ) -> None:
-        if step_id in self.completed_steps:
+        if record_step and step_id in self.completed_steps:
             raise ValueError(f"step already committed: {step_id}")
         updates = dict(updates or {})
         self.facts.difference_update(invalidated)
@@ -116,6 +117,7 @@ class WorldState:
                     pose=pose,
                     grasped=value.get("grasped"),
                 )
-        self.completed_steps.append(step_id)
+        if record_step:
+            self.completed_steps.append(step_id)
         self.last_failure = None
         self.revision += 1

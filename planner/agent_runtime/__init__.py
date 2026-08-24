@@ -13,10 +13,12 @@ from .models import (
     VerificationResult,
     VerificationStatus,
 )
+from .runtime import AgentRuntime
 from .state import ObjectPoseState, ObjectState, WorldState
 
 __all__ = [
     "ExecStatus",
+    "AgentRuntime",
     "FailureCode",
     "MissionBudgets",
     "MissionPlan",
