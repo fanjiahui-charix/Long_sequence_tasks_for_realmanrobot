@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from .prompt_builder import DEFAULT_SYSTEM_PROMPT, build_user_prompt, load_yaml
+from .prompt_builder import DEFAULT_SYSTEM_PROMPT, build_replan_prompt, build_user_prompt, load_yaml
 from .schema import validate_plan
 
 
@@ -135,3 +135,19 @@ class QwenPlannerClient:
         if errors:
             raise ValueError(f"invalid plan: {errors}\nraw output:\n{text}")
         return plan
+
+    def replan_remaining(self, context: dict) -> dict:
+        completion = self._post_chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是机器人任务修复器，只能修复未提交计划后缀并输出严格 JSON。",
+                },
+                {"role": "user", "content": build_replan_prompt(context)},
+            ]
+        )
+        text = completion["choices"][0]["message"]["content"]
+        payload = extract_json_object(text)
+        if not isinstance(payload.get("steps"), list):
+            raise ValueError(f"invalid replan response: expected steps array\nraw output:\n{text}")
+        return payload

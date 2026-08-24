@@ -3,6 +3,7 @@ from planner.agent_runtime.models import (
     FailureCode,
     FailureReport,
     MissionBudgets,
+    MissionPlan,
     VerificationResult,
 )
 from planner.agent_runtime.recovery import (
@@ -11,6 +12,8 @@ from planner.agent_runtime.recovery import (
     RecoveryAction,
     RecoveryPolicy,
 )
+from planner.agent_runtime.replanner import ReplanError, apply_repaired_suffix, build_replan_context
+from planner.agent_runtime.state import WorldState
 
 
 def test_unknown_side_effect_never_blind_retries():
@@ -117,3 +120,113 @@ def test_budget_tracker_prevents_extra_actions_and_replans():
     assert tracker.can_replan()
     tracker.record_replan()
     assert not tracker.can_replan()
+
+
+def _original_plan() -> MissionPlan:
+    return MissionPlan.from_dict(
+        {
+            "plan_id": "p1",
+            "version": 1,
+            "goal": {"type": "holding_object", "object": "cup"},
+            "steps": [
+                {"id": "s1", "skill": "navigate_to", "args": {"target": "pointb"}},
+                {
+                    "id": "s2",
+                    "skill": "detect_object",
+                    "args": {"object": "cup"},
+                    "depends_on": ["s1"],
+                },
+                {
+                    "id": "s3",
+                    "skill": "pick_object",
+                    "args": {"object": "cup"},
+                    "depends_on": ["s2"],
+                },
+            ],
+        }
+    )
+
+
+def test_replan_keeps_committed_prefix_immutable():
+    original = _original_plan()
+    state = WorldState(
+        current_location="pointb",
+        facts={"HandEmpty", "At(pointb)"},
+        completed_steps=["s1"],
+    )
+
+    repaired = apply_repaired_suffix(
+        original=original,
+        committed_steps=[original.steps[0]],
+        returned_steps=[
+            {"id": "s2r", "skill": "detect_object", "args": {"object": "cup"}},
+            {
+                "id": "s3r",
+                "skill": "pick_object",
+                "args": {"object": "cup"},
+                "depends_on": ["s2r"],
+            },
+        ],
+        state=state,
+        contracts=default_contracts(),
+    )
+
+    assert repaired.version == original.version + 1
+    assert repaired.parent_version == original.version
+    assert [step.id for step in repaired.steps] == ["s2r", "s3r"]
+    assert repaired.goal == original.goal
+
+
+def test_replan_rejects_committed_step_id_reuse():
+    original = _original_plan()
+    state = WorldState(facts={"HandEmpty", "At(pointb)"}, completed_steps=["s1"])
+
+    try:
+        apply_repaired_suffix(
+            original=original,
+            committed_steps=[original.steps[0]],
+            returned_steps=[
+                {"id": "s1", "skill": "detect_object", "args": {"object": "cup"}}
+            ],
+            state=state,
+            contracts=default_contracts(),
+        )
+    except ReplanError as exc:
+        assert "committed" in str(exc)
+    else:
+        raise AssertionError("replanner must not reuse a committed step id")
+
+
+def test_replan_context_is_compact_and_state_grounded():
+    original = _original_plan()
+    state = WorldState(
+        current_location="pointb",
+        facts={"HandEmpty", "At(pointb)"},
+        completed_steps=["s1"],
+    )
+    failure = FailureReport(
+        code=FailureCode.OBJECT_NOT_FOUND,
+        step_id="s2",
+        skill="detect_object",
+        args={"object": "cup"},
+        attempts=2,
+    )
+
+    context = build_replan_context(
+        original,
+        state,
+        [original.steps[0]],
+        list(original.steps[1:]),
+        failure,
+        default_contracts(),
+    )
+
+    assert set(context) == {
+        "goal",
+        "verified_world_state",
+        "committed_steps",
+        "remaining_plan",
+        "failure",
+        "available_skills",
+    }
+    assert context["verified_world_state"]["current_location"] == "pointb"

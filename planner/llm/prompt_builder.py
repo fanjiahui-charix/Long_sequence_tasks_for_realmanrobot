@@ -72,3 +72,12 @@ def build_user_prompt(user_task: str, skills_config: dict, scene_config: dict | 
         "请根据图片和以下任务上下文生成机器人 planning JSON。\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
+
+
+def build_replan_prompt(context: dict) -> str:
+    return (
+        "只修复尚未提交的任务后缀。不得重复 committed_steps，不得改变 goal，"
+        "不得输出 timeout/retry/verifier/recovery 等运行时策略。"
+        "只输出严格 JSON：{\"steps\": [...]}。\n"
+        f"{json.dumps(context, ensure_ascii=False, indent=2)}"
+    )
