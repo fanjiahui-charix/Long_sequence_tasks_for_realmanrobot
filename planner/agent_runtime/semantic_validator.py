@@ -31,8 +31,7 @@ class SemanticPlanValidator:
             for arg_error in contract.validate_args(step.args):
                 errors.append(f"step {step.id} {arg_error}")
 
-            required = contract.required_facts(step.args)
-            missing = required - facts
+            missing = contract.missing_required_facts(step.args, facts)
             if missing:
                 errors.append(
                     f"step {step.id} missing required facts: {', '.join(sorted(missing))}"

@@ -103,3 +103,18 @@ def test_duplicate_step_id_is_rejected():
     errors = SemanticPlanValidator(default_contracts()).validate(plan, {"HandEmpty"})
 
     assert "duplicate step id: s1" in errors
+
+
+def test_place_without_any_held_object_is_rejected():
+    plan = MissionPlan.from_dict(
+        {
+            "goal": {"type": "placed_object", "target": "table_1"},
+            "steps": [
+                {"id": "s1", "skill": "place_object", "args": {"target": "table_1"}}
+            ],
+        }
+    )
+
+    errors = SemanticPlanValidator(default_contracts()).validate(plan, {"HandEmpty"})
+
+    assert errors == ["step s1 missing required facts: Holding(*)"]

@@ -232,7 +232,7 @@ class AgentRuntime:
                 args=step.args,
                 message="; ".join(arg_errors),
             )
-        missing_facts = contract.required_facts(step.args) - self.state.facts
+        missing_facts = contract.missing_required_facts(step.args, self.state.facts)
         if missing_facts:
             return FailureReport(
                 code=FailureCode.PRECONDITION_FAILED,

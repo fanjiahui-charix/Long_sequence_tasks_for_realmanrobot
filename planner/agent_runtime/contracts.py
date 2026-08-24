@@ -52,6 +52,7 @@ class SkillContract:
     produces: FactResolver = _no_facts
     invalidates: FactResolver = _no_facts
     invalidates_prefixes: tuple[str, ...] = ()
+    required_fact_prefixes: tuple[str, ...] = ()
     argument_validator: ArgumentValidator = _valid_args
     pose_ttl_s: float | None = None
 
@@ -64,6 +65,17 @@ class SkillContract:
 
     def required_facts(self, args: dict[str, Any]) -> set[str]:
         return set(self.requires(args))
+
+    def missing_required_facts(
+        self,
+        args: dict[str, Any],
+        current_facts: set[str],
+    ) -> set[str]:
+        missing = self.required_facts(args) - current_facts
+        for prefix in self.required_fact_prefixes:
+            if not any(fact.startswith(prefix) for fact in current_facts):
+                missing.add(f"{prefix}*)" if prefix.endswith("(") else f"{prefix}*")
+        return missing
 
     def produced_facts(self, args: dict[str, Any]) -> set[str]:
         return set(self.produces(args))
@@ -176,6 +188,7 @@ def default_contracts() -> dict[str, SkillContract]:
             verifier="place",
             required_args=("target",),
             requires=_place_requires,
+            required_fact_prefixes=("Holding(",),
             produces=lambda args: {"HandEmpty", placed_fact(args["target"])},
             invalidates_prefixes=("Holding(",),
         ),
