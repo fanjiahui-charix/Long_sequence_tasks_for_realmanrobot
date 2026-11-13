@@ -1,212 +1,55 @@
-# Long Sequence Tasks 中文说明
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+# 长时序移动操作 ReAct + Memory Robot Agent
 
-这个仓库是机器人长序列移动操作任务的统一工作区，按能力模块组织，而不是按底层实现方式组织。
+[![Agent 软件测试](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml)
 
-- `navigation/`：底盘运动、AGV 控制、导航接口
-- `planner/`：文本到计划、计划校验、长序列任务执行
-- `vision_grasp/`：相机采集、FoundationPose 6D 位姿估计、抓取执行
+[English](README.md) · [系统架构](docs/SYSTEM_DESIGN.md) · [通用接口](docs/BACKEND_API.md) · [实验结果](docs/EVALUATION.md)
 
-当前仓库已经整理成适合后续开源的结构。`FoundationPose` 作为内部模块放在
-`vision_grasp/foundationpose/`，机器人相关的集成层放在它旁边。
+新系统已替换旧 JSON Planner / AgentRuntime。单个 ReAct Agent 每轮选择一个高层 Skill，读取执行反馈，更新 Working Memory，并从 SQLite 检索已验证的恢复经验。任务为 **A → B 找黑色眼镜盒 → 抓取 → 持物返回 A**，不包含放置和松爪。
 
-英文版说明见：`README.md`
+只有“当前位置验证为 A”与“目标仍被持有”同时成立，才能报告 COMPLETED。UNKNOWN、命令已发送、目标开合指令和 LLM 的完成声明都不能代替验证。
 
-## 总体架构
+## 平台演示
 
-完整 demo 链路是：
+![RealMan 平台演示，3 倍速循环动图](docs/media/project-demo.gif)
 
-1. 先用分层 bringup 启动 ROS 和硬件依赖。
-2. 用 `planner/` 把自然语言任务转成长序列结构化计划。
-3. 用 `navigation/` 控制底盘移动到目标点位或目标桌面。
-4. 用 `vision_grasp/` 采当前画面、生成或传入 mask、运行 FoundationPose、把相机坐标系下的位姿转换到机械臂基座坐标系，并执行抓取。
+[查看或下载原速视频（51 秒，MP4）](docs/media/project-demo.mp4)。
 
-三个主模块可以分开调试：
+动图约 17 秒，以 3 倍速展示已有项目中的机器人平台与机械臂动作。视频对应的软件版本尚未与此次重构建立对应关系；新 Agent 的验证范围和结果见[实验报告](docs/EVALUATION.md)。
 
-- `navigation/` 可以单独联调，不依赖视觉或抓取。
-- `planner/` 可以走 mock 后端，先验证任务规划逻辑。
-- `vision_grasp/` 可以只做感知，也可以做感知加真实抓取。
+## 无硬件快速运行
 
-## 仓库结构
-
-```text
-Long_sequence_tasks/
-  navigation/          底盘与导航代码
-  planner/             LLM 规划与执行层
-  vision_grasp/        视觉抓取主模块
-  scripts/             一键 bringup、停止、系统检查脚本
-  .env.example         环境变量模板
-  README.md            英文总说明
-  README.zh-CN.md      中文总说明
-```
-
-分模块说明：
-
-- `/home/rm/Long_sequence_tasks/navigation/README.zh-CN.md`
-- `/home/rm/Long_sequence_tasks/planner/README.zh-CN.md`
-- `/home/rm/Long_sequence_tasks/vision_grasp/README.zh-CN.md`
-
-## 运行环境
-
-这个项目主要用两套 Python 环境：
-
-- ROS / 硬件控制：
-  `/usr/bin/python3`
-  同时需要 `source /opt/ros/noetic/setup.bash`
-- FoundationPose 推理：
-  `conda activate foundationpose`
-
-相机采集、TF 查询、机械臂与夹爪控制会自动走 ROS 的系统 Python。FoundationPose 推理脚本会自动切到 `foundationpose` conda 环境。
-
-## 一键 Bringup
-
-最常用的是最小启动模式：
+Agent 使用独立的 **Python 3.10+** 环境；保留 ROS Noetic 系统 Python 与 FoundationPose Conda，不合并环境。
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python -m robot_agent demo --memory --fault POSE_STALE
+python -m robot_agent evaluate --repetitions 3
 ```
 
-`--mode minimal` 会启动：
+演示注入一次位姿过期，重新定位后抓取并返回 A。结果、JSONL 轨迹和 SQLite 位于已忽略的 runtime/。脚本化 Mock 决策不是大模型，LLM Calls 明确记为 0。
 
-- `roscore`
-- 底盘驱动
-- 头顶相机
-- 6 自由度机械臂驱动
-- 末端执行器驱动
-- 必要 TF 发布
+## Qwen API + Mock 机器人
 
-如果你还需要更完整的任务态节点，可以用：
+将 .env.example 复制为 .env，填写自己的 DashScope API Key 和账户可用模型。支持现有 Qwen 兼容 API，每次输出由 Pydantic 校验。图片理解需要视觉模型。不得提交 .env。
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode full
+python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --fault POSE_STALE --output-dir runtime/qwen-demo
+python -m robot_agent evaluate --llm qwen --scenarios pose_stale,execution_unknown --repetitions 2 --output-dir runtime/qwen-evaluation
 ```
 
-停止 bringup 拉起的进程：
+示例 PNG 是标注 A/B/桌子/眼镜盒的合成示意图。实际指令用 --instruction 输入，也可读取预验证的 --mission-file。图片不会直接生成可执行导航坐标，A/B 与真实 marker 的映射由部署配置提供。
+
+## 通用接口与底层能力
+
+RobotBackend 定义导航、定位、抓取、观察和取消接口，适配其他机器人无需改 Agent 核心。可选 RealMan 适配器保留现有导航、RGB-D、YOLO-seg、FoundationPose、TF 与抓取流程。核心新增依赖为 Pydantic，SQLite 使用标准库。
+
+真实持物验证必须有实际测量宽度和标定。现有命令回显不能当实际反馈，缺失时保持 UNKNOWN。硬件配置模板故意留空，默认不能执行动作：
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_stop.sh
+python -m robot_agent preflight --hardware-config config/hardware.example.yaml
 ```
 
-检查当前 ROS 节点、话题和关键 TF：
+[硬件适配清单](docs/HARDWARE_VALIDATION.md) 列出宽度/状态/停止接口、A/B 定位和相机时间同步等待确认事项。本次未执行真实机器人动作，也未改动原有相机外参或重新标定机械臂。
 
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
-```
-
-## Demo 用法
-
-### 1. 只跑导航
-
-```bash
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py markers
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py target --name table_2
-```
-
-作用：
-
-- `markers`：打印当前可用标记点
-- `target --name table_2`：让底盘移动到命名目标点
-
-### 2. 只跑规划
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and check whether there is an apple" \
-  --nav-backend mock \
-  --manipulation-backend mock
-```
-
-作用：
-
-- 调用规划模型生成长序列计划
-- 用 mock 后端做安全干跑
-- 不会真实驱动底盘和机械臂
-
-### 3. 只做视觉位姿估计
-
-```bash
-source /home/rm/miniforge3/bin/activate foundationpose
-
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
-  --camera-name camera_middle \
-  --camera-frame camera_middle \
-  --mesh /home/rm/Long_sequence_tasks/vision_grasp/foundationpose/demo_data/mustard0/mesh/textured_simple.obj \
-  --object-label mustard \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  --mask
-```
-
-作用：
-
-- 采一帧当前 RGB-D 图像
-- 自动基于深度生成 mask
-- 运行 FoundationPose
-- 输出 `foundationpose_pose.json` 和 `pipeline_result.json`
-- 默认不会动机械臂，除非加 `--execute-grasp`
-
-### 4. 感知后真实抓取
-
-```bash
-source /home/rm/miniforge3/bin/activate foundationpose
-
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
-  --camera-name camera_middle \
-  --camera-frame camera_middle \
-  --mesh /home/rm/Long_sequence_tasks/vision_grasp/foundationpose/demo_data/mustard0/mesh/textured_simple.obj \
-  --object-label mustard \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  --mask \
-  --execute-grasp
-```
-
-作用：
-
-- 先跑视觉定位
-- 再把位姿交给抓取模块
-- 执行 `home -> pregrasp -> grasp -> close -> retreat`
-
-## 关键配置
-
-- `/home/rm/Long_sequence_tasks/.env.example`
-  全局环境变量模板
-- `/home/rm/Long_sequence_tasks/planner/configs/*.yaml`
-  规划提示词、技能配置、导航点位、场景模板
-- `/home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml`
-  抓取配置，包括坐标系、末端参数、退让偏移、抓取姿态参数
-
-## 常见问题
-
-### `tf2.LookupException: "base_left" passed to lookupTransform argument target_frame does not exist`
-
-含义：
-
-- 机械臂驱动或 TF 发布没有起来
-- bringup 没有完整启动
-- 配置里的基座坐标系和当前机器人实际 TF 不一致
-
-建议先检查：
-
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
-```
-
-### `ModuleNotFoundError: No module named 'rospy'`
-
-含义：
-
-- 一个依赖 ROS 的脚本被错误地放在了 conda 环境里直接运行
-- 没有走 ROS 的系统 Python
-
-建议：
-
-- 优先使用新的 pipeline 脚本和 bringup 脚本
-- 它们会自动把 ROS 子进程切到 `/usr/bin/python3`
-
-## 开源与提交注意事项
-
-为了方便 GitHub 开源，运行产物和大体积模型权重不要提交到 Git：
-
-- `vision_grasp/runtime/`
-- `vision_grasp/foundationpose/weights/`
-- `.run/`
+入口为 robot_agent/agent.py，通用协议为 robot_agent/backends/base.py。[审查记录](docs/AUDIT.md) 说明原始本地/GitHub 差异、保留文件和旧 Agent 删除范围。新增 Agent 代码按 MIT 开源，第三方保留各自许可证，详见 LICENSE-AGENT 与 NOTICE.md。

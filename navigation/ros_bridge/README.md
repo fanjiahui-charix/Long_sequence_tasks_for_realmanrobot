@@ -121,8 +121,9 @@ python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.p
   is the direct TCP path
 - `navigation/ros_bridge/`
   is the ROS topic path
-- `planner/skills/navigation_skill.py`
-  can use this path when the ROS backend is enabled
+- `robot_agent/backends/base.py`
+  defines the platform-neutral navigation port. The optional RealMan adapter
+  uses the existing TCP client and independently verifies current arrival.
 
 ## Common Notes
 

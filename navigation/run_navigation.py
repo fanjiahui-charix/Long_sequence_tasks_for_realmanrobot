@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from navigation.chassis_client import ChassisNavigationClient
 
-DEFAULT_TARGET_MAP_PATH = ROOT / "planner" / "configs" / "nav_targets.yaml"
+DEFAULT_TARGET_MAP_PATH = ROOT / "config" / "robot" / "nav_targets.yaml"
 
 
 def load_targets(path: Path) -> dict[str, str]:

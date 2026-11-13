@@ -1,0 +1,9 @@
+# Complete using physical measurements for the actual device and target category.
+calibration_id: null
+object_category: glasses_case
+origin: measured
+empty_range_mm: null
+held_range_mm: null
+max_spread_mm: null
+min_samples: null
+max_age_s: null

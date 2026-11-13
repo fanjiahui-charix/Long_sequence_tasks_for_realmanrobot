@@ -32,8 +32,8 @@ listener = tf2_ros.TransformListener(buffer)
 rospy.sleep(1.0)
 
 pairs = [
-    ("required", "base_left", "camera_middle"),
-    ("optional", "base_left", "map"),
+    ("required", "base_right", "camera_middle"),
+    ("optional", "base_right", "map"),
 ]
 for level, target, source in pairs:
     try:

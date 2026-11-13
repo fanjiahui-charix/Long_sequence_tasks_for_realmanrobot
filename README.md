@@ -1,218 +1,59 @@
-# Long Sequence Tasks
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+# ReAct + Memory Robot Agent
 
-This repository is the unified workspace for long-horizon mobile manipulation on
-the robot. It groups the project by capability instead of by implementation
-layer:
+[![Agent software tests](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml)
 
-- `navigation/`: chassis motion and AGV integration
-- `planner/`: text-to-plan, plan validation, and task execution
-- `vision_grasp/`: camera capture, FoundationPose 6D estimation, and grasp
-  execution
+[简体中文](README.zh-CN.md) · [Architecture](docs/SYSTEM_DESIGN.md) · [Backend API](docs/BACKEND_API.md) · [Evaluation](docs/EVALUATION.md)
 
-The repository is organized so it can be published as a single open-source
-project. Third-party pose estimation code is now managed inside
-`vision_grasp/foundationpose/` as an internal module, and the robot-specific
-integration layer lives beside it.
+Single-agent mobile manipulation: leave A, find/grasp the black glasses case at B, and return while holding it. This replaces the old one-shot planner/runtime with typed ReAct decisions, Working Memory, SQLite Episodic Memory and deterministic verification.
 
-## Architecture
+The LLM selects one high-level skill per turn. Only current measured feedback establishes location, usable pose and holding state. FINISH succeeds only after a new check of **at A AND holding the target**. No place/release tool exists.
 
-The full demo path is:
+## Platform demo
 
-1. Start hardware and ROS dependencies with the layered bringup scripts.
-2. Use `planner/` to turn a text task into a structured long-sequence plan.
-3. Use `navigation/` to move the base to the target waypoint or table.
-4. Use `vision_grasp/` to capture the current camera frame, generate or supply
-   a mask, run FoundationPose, transform the pose into the arm base frame, and
-   execute the grasp.
+![RealMan platform demo at 3× playback speed](docs/media/project-demo.gif)
 
-The three main modules are intentionally separable:
+[Watch or download the original video (51 seconds, MP4)](docs/media/project-demo.mp4).
 
-- `navigation/` can be tested without perception or grasp.
-- `planner/` can run with mock backends.
-- `vision_grasp/` can do perception-only or perception-plus-grasp.
+Existing project footage, shown as a roughly 17-second looping GIF at 3× speed. It illustrates the robot platform and arm motion. The recording's software version has not been mapped to this refactor; the new Agent's validation scope and results are documented in [Evaluation](docs/EVALUATION.md).
 
-## Repository Layout
+## Quick start without hardware or credentials
 
-```text
-Long_sequence_tasks/
-  navigation/          Mobile base code and ROS bridges
-  planner/             LLM planning and executor layer
-  vision_grasp/        Camera, grasp, FoundationPose, and integration code
-  scripts/             One-command bringup, stop, and health-check helpers
-  .env.example         Environment variable template
-  README.md            Project-level guide
-```
-
-See module guides:
-
-- `/home/rm/Long_sequence_tasks/navigation/README.md`
-- `/home/rm/Long_sequence_tasks/planner/README.md`
-- `/home/rm/Long_sequence_tasks/vision_grasp/README.md`
-
-## Environments
-
-This project uses two Python environments:
-
-- ROS / hardware control:
-  `/usr/bin/python3` with `source /opt/ros/noetic/setup.bash`
-- FoundationPose inference:
-  `conda activate foundationpose`
-
-The grasp and camera subprocesses are launched with ROS's system Python. The
-FoundationPose integration scripts call the `foundationpose` conda environment
-for pose estimation.
-
-## Bringup
-
-Use the unified bringup entrypoint:
+Use a separate Python **3.10+** environment. Keep existing ROS Noetic and FoundationPose environments.
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python -m robot_agent demo --memory --fault POSE_STALE
+python -m robot_agent evaluate --repetitions 3
 ```
 
-`--mode minimal` starts:
+The demo reacquires a stale pose, grasps, returns and verifies both goals. Reports, SQLite and traces go to ignored runtime/. Scripted decisions are explicitly counted as **zero LLM calls** and validate software behavior rather than model quality.
 
-- `roscore`
-- mobile base driver
-- head camera
-- 6-DOF arm driver and end effector driver
+## Qwen API with a mock robot
 
-Use the fuller mode when you also want the AGV ROS bridge process:
+Copy .env.example to ignored .env and configure your own DashScope key and account-available model. A vision-capable model is required for scene understanding. Each response is Pydantic-validated; a separate vision model can be configured.
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode full
+python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --fault POSE_STALE --output-dir runtime/qwen-demo
+python -m robot_agent evaluate --llm qwen --scenarios pose_stale,execution_unknown --repetitions 2 --output-dir runtime/qwen-evaluation
 ```
 
-Stop all processes started by the bringup script:
+The shipped PNG is a synthetic A/B/table/object schematic, not a physical observation. Replace it and --instruction within the V1 scenario. Actual marker mapping is trusted deployment input, never inferred executable coordinates.
+
+## Robot integration
+
+RobotBackend is a platform-neutral async protocol. Implement it for another robot without changing the core. Optional RealMan adapters reuse navigation/ and vision_grasp/ across their original interpreters.
+
+Real hardware is disabled by default. The shipped configuration intentionally fails until actual width calibration, state/stop ports, goal poses and timing are confirmed:
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_stop.sh
+python -m robot_agent preflight --hardware-config config/hardware.example.yaml
 ```
 
-Check current nodes, topics, and key TF relations:
+See [hardware deployment](docs/HARDWARE_VALIDATION.md). Missing actual width returns UNKNOWN; target opening is not evidence. The refactor did not certify/recalibrate arm or camera parameters, and development executed no real motion.
 
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
-```
+## Layout and license
 
-## Demo Paths
+robot_agent/: core, schemas, tools, memory, verifier, backends/adapters and CLI. tests/: automated software checks. navigation/ and vision_grasp/: retained robot/model capabilities. config/: hardware templates and preserved configuration. docs/: architecture, source audit, results and deployment checks.
 
-### 1. Navigation only
-
-```bash
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py markers
-python3 /home/rm/Long_sequence_tasks/navigation/run_navigation.py target --name table_2
-```
-
-Effect:
-
-- `markers`: prints known navigation markers
-- `target --name table_2`: sends the chassis to the named target
-
-### 2. Planner only
-
-```bash
-python3 /home/rm/Long_sequence_tasks/planner/examples/run_long_task.py \
-  --image /path/to/lab_scene.jpg \
-  --task "go to pointc and check whether there is an apple" \
-  --nav-backend mock \
-  --manipulation-backend mock
-```
-
-Effect:
-
-- uses the Qwen planner path
-- outputs and executes a long-sequence plan with mock backends
-- safe for dry-run validation
-
-### 3. Vision pose only
-
-```bash
-source /home/rm/miniforge3/bin/activate foundationpose
-
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
-  --camera-name camera_middle \
-  --camera-frame camera_middle \
-  --mesh /home/rm/Long_sequence_tasks/vision_grasp/foundationpose/demo_data/mustard0/mesh/textured_simple.obj \
-  --object-label mustard \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  --mask
-```
-
-Effect:
-
-- captures one current RGB-D frame
-- auto-generates a mask from the current depth image
-- runs FoundationPose
-- writes `foundationpose_pose.json` and `pipeline_result.json`
-- does not move hardware unless `--execute-grasp` is added
-
-### 4. Vision pose + real grasp
-
-```bash
-source /home/rm/miniforge3/bin/activate foundationpose
-
-python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pipeline.py \
-  --camera-name camera_middle \
-  --camera-frame camera_middle \
-  --mesh /home/rm/Long_sequence_tasks/vision_grasp/foundationpose/demo_data/mustard0/mesh/textured_simple.obj \
-  --object-label mustard \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  --mask \
-  --execute-grasp
-```
-
-Effect:
-
-- runs the same perception chain as above
-- consumes the FoundationPose output
-- transforms camera pose into arm base frame
-- executes `home -> pregrasp -> grasp -> close -> retreat`
-
-## Key Config Files
-
-- `/home/rm/Long_sequence_tasks/.env.example`
-  environment variables for planner and global paths
-- `/home/rm/Long_sequence_tasks/planner/configs/*.yaml`
-  planner prompts, skills, task scene templates, nav targets
-- `/home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml`
-  grasp frames, end-effector parameters, retreat offsets, and pose-grasp
-  settings
-
-## Common Problems
-
-### `tf2.LookupException: "base_left" passed to lookupTransform argument target_frame does not exist`
-
-Meaning:
-
-- the arm driver or TF publisher is not running, or
-- bringup finished only partially, or
-- the configured base frame does not match the active robot graph
-
-Recommended checks:
-
-```bash
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
-```
-
-### `ModuleNotFoundError: No module named 'rospy'`
-
-Meaning:
-
-- a ROS-dependent script was launched in the wrong Python environment without
-  ROS setup sourced
-
-Fix:
-
-- use the new pipeline and bringup scripts
-- they already force ROS subprocesses to use `/usr/bin/python3`
-
-## Publishing Notes
-
-The repository is prepared for GitHub publication. Runtime outputs and large
-FoundationPose artifacts should stay out of version control:
-
-- `vision_grasp/runtime/`
-- `vision_grasp/foundationpose/weights/`
-- `.run/`
+The new Agent contribution is MIT-licensed; see LICENSE-AGENT and NOTICE.md. Retained third-party/vendor files keep their own licenses. [Audit](docs/AUDIT.md) records provenance, migration and old-agent removal.

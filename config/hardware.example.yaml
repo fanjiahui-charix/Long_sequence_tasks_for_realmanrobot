@@ -1,0 +1,25 @@
+# Deliberately incomplete: fill and confirm on the target platform.
+# This example cannot enable motion. It contains no guessed calibration.
+interfaces_confirmed: false
+timing_confirmed: false
+chassis_host: "192.168.10.10" # existing repository's endpoint; verify on your platform
+chassis_port: 31001
+location_mapping: {}
+waypoints: {} # A/B: x, y, theta, xy_tolerance_m, yaw_tolerance_rad (all measured/configured)
+state_command: [] # operator-owned read-only command returning Observation JSON
+# Explicit platform stop command. ACK does not establish motion_settled.
+grasp_stop_command: []
+ros_python: /usr/bin/python3
+segmentation_python: /usr/bin/python3
+foundationpose_python: null # existing independent FoundationPose conda interpreter
+grasp_config: null # confirmed YAML; do not copy example arm/calibration blindly
+mesh_path: null
+segmentation_weights: null
+segmentation_label: null
+segmentation_confidence: null
+pose_min_score: null # FoundationPose scores are not assumed to be probabilities
+calibration: null # see gripper_calibration.example.yaml; measured origin required
+runtime_root: runtime/hardware
+pose_ttl_s: null # choose after measuring capture/inference/motion timing
+observation_ttl_s: null
+stage_timeout_s: null

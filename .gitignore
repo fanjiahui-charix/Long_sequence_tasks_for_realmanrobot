@@ -19,14 +19,25 @@ env/
 *.log
 *.bag
 *.db
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 .DS_Store
 
 .run/
+runtime/
+build/
+dist/
+*.egg-info/
+.vscode/
 vision_grasp/runtime/
 vision_grasp/weights/
+vision_grasp/demo/weights/
 vision_grasp/checkpoints/
 vision_grasp/models/
 vision_grasp/foundationpose/weights/
+vision_grasp/foundationpose/mesh/
 vision_grasp/foundationpose/assets/
 vision_grasp/foundationpose/demo_data/
 vision_grasp/foundationpose/foundationpose_live/

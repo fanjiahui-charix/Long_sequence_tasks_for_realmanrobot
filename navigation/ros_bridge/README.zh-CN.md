@@ -118,8 +118,8 @@ python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.p
   是直接 TCP 路径
 - `navigation/ros_bridge/`
   是 ROS 话题路径
-- `planner/skills/navigation_skill.py`
-  开启 ROS 后端时会走这一套路径
+- `robot_agent/backends/base.py`
+  定义通用导航接口。可选 RealMan 适配器复用 TCP 客户端并独立验证当前到达状态。
 
 ## 补充说明
 

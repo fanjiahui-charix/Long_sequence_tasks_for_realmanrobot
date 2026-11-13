@@ -101,8 +101,8 @@ else
     "source /opt/ros/noetic/setup.bash && source \$HOME/rmc_dual_arm_robot/devel/setup.bash && roslaunch rm_dual_arm_camera rm_dual_arm_camera_single.launch"
 fi
 
-if topic_exists "/l_arm/rm_driver/Plan_State"; then
-  echo "[skip] arm driver appears active via /l_arm/rm_driver/Plan_State"
+if topic_exists "/r_arm/rm_driver/MoveJ_Cmd"; then
+  echo "[skip] arm driver appears active via /r_arm/rm_driver/MoveJ_Cmd"
 else
   start_component \
     "arm_driver" \
