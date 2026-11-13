@@ -331,7 +331,7 @@ Effect:
 ### Capture segmentation training data on the robot
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+# Start platform camera, arm and end-effector drivers; verify ROS topics before continuing.
 source /opt/ros/noetic/setup.bash
 source ~/lt_grasp_ws/devel/setup.bash
 
@@ -410,8 +410,7 @@ Meaning:
 Fix:
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
+# Start platform camera, arm and end-effector drivers; verify ROS topics before continuing.
 ```
 
 ### `ModuleNotFoundError: No module named 'rospy'`

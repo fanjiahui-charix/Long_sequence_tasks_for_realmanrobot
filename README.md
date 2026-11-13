@@ -1,59 +1,94 @@
 # ReAct + Memory Robot Agent
 
-[![Agent software tests](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml)
+面向机器人长序列移动操作的 Agent 系统。使用 Qwen 理解自然语言指令和环境示意图，通过 ReAct 循环选择高层技能，并结合工作记忆、SQLite 经验记忆和执行反馈持续决策。
 
-[简体中文](README.zh-CN.md) · [Architecture](docs/SYSTEM_DESIGN.md) · [Backend API](docs/BACKEND_API.md) · [Evaluation](docs/EVALUATION.md)
+示例任务：**从 A 出发 → 到 B 寻找黑色眼镜盒 → 定位并抓取 → 携物返回 A**。
 
-Single-agent mobile manipulation: leave A, find/grasp the black glasses case at B, and return while holding it. This replaces the old one-shot planner/runtime with typed ReAct decisions, Working Memory, SQLite Episodic Memory and deterministic verification.
+![机器人平台演示](docs/media/project-demo.gif)
 
-The LLM selects one high-level skill per turn. Only current measured feedback establishes location, usable pose and holding state. FINISH succeeds only after a new check of **at A AND holding the target**. No place/release tool exists.
+[查看原速视频](docs/media/project-demo.mp4)。以上为已有平台的演示录像；新 Agent 目前完成软件与 Mock 机器人联调，真机接入见下文。
 
-## Platform demo
+## 工作方式
 
-![RealMan platform demo at 3× playback speed](docs/media/project-demo.gif)
+每轮决策执行一个技能，获得实际反馈后再决定下一步：
 
-[Watch or download the original video (51 seconds, MP4)](docs/media/project-demo.mp4).
+```text
+指令 + 环境示意图
+        ↓
+   Qwen / ReAct ← 工作记忆 + SQLite 经验
+        ↓
+     高层技能
+        ↓
+  机器人执行与状态反馈
+        ↓
+ 确定性验证 → 更新记忆 → 下一轮决策
+```
 
-Existing project footage, shown as a roughly 17-second looping GIF at 3× speed. It illustrates the robot platform and arm motion. The recording's software version has not been mapped to this refactor; the new Agent's validation scope and results are documented in [Evaluation](docs/EVALUATION.md).
+| 技能 | 功能 |
+| --- | --- |
+| `navigate_to` | 导航到配置中的目标位置 |
+| `locate_object` | RGB-D 采集、分割、FoundationPose 6D 位姿估计和坐标转换 |
+| `grasp_object` | 预抓取、抓取、闭合夹爪和回撤 |
+| `observe_robot_state` | 读取当前位置、机械臂状态和夹爪反馈 |
 
-## Quick start without hardware or credentials
+大模型只选择高层技能，不直接下发关节角、速度或底层硬件参数。任务完成必须同时验证**机器人返回 A**和**仍持有目标物体**。持物判断使用经过标定的实际夹爪宽度；反馈不足时保持 `UNKNOWN`。
 
-Use a separate Python **3.10+** environment. Keep existing ROS Noetic and FoundationPose environments.
+## 快速开始
+
+使用独立的 **Python 3.10+** 环境。在仓库根目录安装：
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
+python -m pip install -e .
+python -m robot_agent demo --memory
+```
+
+默认使用 Mock 机器人和脚本化决策，无需硬件或 API Key。下面的示例注入一次位姿过期，Agent 会重新定位后继续任务：
+
+```bash
 python -m robot_agent demo --memory --fault POSE_STALE
-python -m robot_agent evaluate --repetitions 3
 ```
 
-The demo reacquires a stale pose, grasps, returns and verifies both goals. Reports, SQLite and traces go to ignored runtime/. Scripted decisions are explicitly counted as **zero LLM calls** and validate software behavior rather than model quality.
+执行记录保存在 `runtime/`，包括任务结果、JSONL 轨迹和 SQLite 记忆库。
 
-## Qwen API with a mock robot
+## 接入 Qwen
 
-Copy .env.example to ignored .env and configure your own DashScope key and account-available model. A vision-capable model is required for scene understanding. Each response is Pydantic-validated; a separate vision model can be configured.
+将 `.env.example` 复制为 `.env`，填写自己的 API Key 和可用模型：
+
+```dotenv
+DASHSCOPE_API_KEY=your_api_key
+QWEN_MODEL=qwen3-vl-plus
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+使用视觉模型理解示意图，并驱动 Mock 机器人执行完整流程：
 
 ```bash
-python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --fault POSE_STALE --output-dir runtime/qwen-demo
-python -m robot_agent evaluate --llm qwen --scenarios pose_stale,execution_unknown --repetitions 2 --output-dir runtime/qwen-evaluation
+python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory
 ```
 
-The shipped PNG is a synthetic A/B/table/object schematic, not a physical observation. Replace it and --instruction within the V1 scenario. Actual marker mapping is trusted deployment input, never inferred executable coordinates.
+可通过 `--image` 替换示意图，`--instruction` 指定指令。示例图片标注了 A、B、桌子和眼镜盒；真实导航位置由部署配置映射，图片不会直接生成底盘坐标。`.env` 已加入 Git 忽略列表。
 
-## Robot integration
+## 接入真实机器人
 
-RobotBackend is a platform-neutral async protocol. Implement it for another robot without changing the core. Optional RealMan adapters reuse navigation/ and vision_grasp/ across their original interpreters.
+`RobotBackend` 提供通用接口，其他平台实现相同协议即可接入。仓库保留了 RealMan 的导航、RGB-D、YOLO-seg、FoundationPose、坐标变换和抓取能力。
 
-Real hardware is disabled by default. The shipped configuration intentionally fails until actual width calibration, state/stop ports, goal poses and timing are confirmed:
+ROS Noetic、FoundationPose Conda 和 Agent Python 环境各自独立。先配置实际状态读取、停止接口、A/B 位置和夹爪宽度标定，再运行离线检查：
 
 ```bash
 python -m robot_agent preflight --hardware-config config/hardware.example.yaml
 ```
 
-See [hardware deployment](docs/HARDWARE_VALIDATION.md). Missing actual width returns UNKNOWN; target opening is not evidence. The refactor did not certify/recalibrate arm or camera parameters, and development executed no real motion.
+示例配置保留待填写项，检查会列出缺失信息。真机动作需要显式启用；当前示例默认运行 Mock。完整接入步骤见[硬件部署说明](docs/HARDWARE_VALIDATION.md)。
 
-## Layout and license
+## 代码结构
 
-robot_agent/: core, schemas, tools, memory, verifier, backends/adapters and CLI. tests/: automated software checks. navigation/ and vision_grasp/: retained robot/model capabilities. config/: hardware templates and preserved configuration. docs/: architecture, source audit, results and deployment checks.
+| 目录 | 内容 |
+| --- | --- |
+| `robot_agent/` | ReAct 主循环、工具、记忆、验证器和机器人适配器 |
+| `navigation/` | 底盘导航接口与 ROS 桥接 |
+| `vision_grasp/` | 相机、分割、位姿估计、坐标转换和抓取 |
+| `config/` | 硬件配置模板、夹爪标定模板和导航目标 |
+| `examples/` | 环境示意图与自定义 Backend 示例 |
+| `docs/` | [系统架构](docs/SYSTEM_DESIGN.md)、[接口说明](docs/BACKEND_API.md)、硬件部署和演示媒体 |
 
-The new Agent contribution is MIT-licensed; see LICENSE-AGENT and NOTICE.md. Retained third-party/vendor files keep their own licenses. [Audit](docs/AUDIT.md) records provenance, migration and old-agent removal.
+新增 Agent 代码采用 [MIT 许可证](LICENSE-AGENT)。保留的第三方代码、驱动及演示媒体遵循各自授权，详见 [NOTICE.md](NOTICE.md)。

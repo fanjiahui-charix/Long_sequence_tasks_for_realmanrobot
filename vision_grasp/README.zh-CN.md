@@ -334,7 +334,7 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/integration/run_pose_grasp_pip
 ### 在机器人上采分割训练数据
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
+# 按平台说明启动相机、机械臂和末端驱动，确认 ROS 话题后继续。
 source /opt/ros/noetic/setup.bash
 source ~/lt_grasp_ws/devel/setup.bash
 
@@ -413,8 +413,7 @@ vision_grasp/runtime/<run_id>/
 建议：
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
+# 按平台说明启动相机、机械臂和末端驱动，确认 ROS 话题后继续。
 ```
 
 ### `ModuleNotFoundError: No module named 'rospy'`

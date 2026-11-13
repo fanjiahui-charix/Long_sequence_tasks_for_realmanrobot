@@ -147,8 +147,7 @@ Meaning:
 Fix:
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
+# Start platform camera, arm and end-effector drivers; verify ROS topics before continuing.
 ```
 
 ### `ModuleNotFoundError: No module named 'rospy'`

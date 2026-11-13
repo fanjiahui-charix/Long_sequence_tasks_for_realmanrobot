@@ -19,7 +19,3 @@ include = ["robot_agent*"]
 
 [tool.setuptools.package-data]
 robot_agent = ["prompts/*.md"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra"

@@ -146,8 +146,7 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
 建议：
 
 ```bash
-bash /home/rm/Long_sequence_tasks/scripts/bringup_long_tasks.sh --mode minimal
-bash /home/rm/Long_sequence_tasks/scripts/check_system.sh
+# 按平台说明启动相机、机械臂和末端驱动，确认 ROS 话题后继续。
 ```
 
 ### `ModuleNotFoundError: No module named 'rospy'`

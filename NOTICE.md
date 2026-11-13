@@ -1,6 +1,6 @@
 # Notices and license scope
 
-The new Agent contribution in robot_agent/, tests/, the new examples/config templates, and new project documentation is licensed under LICENSE-AGENT (MIT), as selected by the project maintainer.
+The new Agent contribution in robot_agent/, the new examples/config templates, and new project documentation is licensed under LICENSE-AGENT (MIT), as selected by the project maintainer.
 
 Retained or migrated pre-existing robot configuration, navigation/, vision_grasp/, vendor drivers, third-party model code, assets and original documentation retain their existing copyright and license terms. This MIT contribution license does not relicense them. FoundationPose's license remains in vision_grasp/foundationpose/LICENSE.
 
