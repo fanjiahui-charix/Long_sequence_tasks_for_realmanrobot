@@ -50,3 +50,7 @@ Implementation and local acceptance performed no real robot motion, ROS/CUDA upg
 ## Demonstration media
 
 The user-provided 51.39-second platform video is retained unchanged as docs/media/project-demo.mp4. A 3× looping GIF is embedded in both root READMEs. Its recording version has not been tied to the refactored Agent, so the caption identifies it as existing platform footage and points to the separately documented API-level evaluation.
+
+## Publication compatibility check
+
+The first feature-branch CI run exposed a Python 3.10.11 cancellation race, reproduced in an isolated local interpreter before fixing it. The deadline boundary now explicitly preserves outer cancellation, including when the inner task has just completed; see [CPython issue 86296](https://github.com/python/cpython/issues/86296). Timeout cleanup latches physical uncertainty before awaiting stop, and invalid backend results become structured unknown/rejection states. Event-synchronized regressions cover each boundary. Both Python 3.10.11 and 3.13.9 pass 59 tests locally; the current remote matrix remains visible in the repository's Actions page.

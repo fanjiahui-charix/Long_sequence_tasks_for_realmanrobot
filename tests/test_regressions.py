@@ -1,6 +1,8 @@
 import asyncio
 import time
 
+import pytest
+
 from robot_agent.agent import ReActAgent
 from robot_agent.backends.mock_robot import MockRobotBackend
 from robot_agent.executor import ToolExecutor
@@ -105,9 +107,11 @@ def test_external_cancellation_calls_stop_but_keeps_unknown_state(mission, verif
         def __init__(self):
             super().__init__()
             self.cancel_calls = 0
+            self.started = asyncio.Event()
 
         async def navigate_to(self, target, mission):
             self.settled = False
+            self.started.set()
             await asyncio.sleep(5)
 
         async def cancel_current_action(self):
@@ -127,7 +131,7 @@ def test_external_cancellation_calls_stop_but_keeps_unknown_state(mission, verif
             decision_summary="cancel test",
         )
         task = asyncio.create_task(executor.execute(decision, state))
-        await asyncio.sleep(0.01)
+        await backend.started.wait()
         task.cancel()
         try:
             await task
@@ -146,6 +150,7 @@ def test_cancellation_during_post_action_observation_keeps_interlock(mission, ve
             super().__init__()
             self.action_returned = False
             self.stops = 0
+            self.observing = asyncio.Event()
 
         async def navigate_to(self, target, mission):
             result = await super().navigate_to(target, mission)
@@ -154,6 +159,7 @@ def test_cancellation_during_post_action_observation_keeps_interlock(mission, ve
 
         async def observe_robot_state(self, mission):
             if self.action_returned:
+                self.observing.set()
                 await asyncio.sleep(5)
             return await super().observe_robot_state(mission)
 
@@ -174,7 +180,7 @@ def test_cancellation_during_post_action_observation_keeps_interlock(mission, ve
             decision_summary="test observation interruption",
         )
         task = asyncio.create_task(executor.execute(decision, state))
-        await asyncio.sleep(0.01)
+        await backend.observing.wait()
         task.cancel()
         try:
             await task
@@ -229,3 +235,118 @@ def test_arrival_without_held_object_cannot_verify_a_carry_recovery(
         )
         assert report.metrics.recoveries == 0
         assert memory.retrieve(failure_type="OBJECT_LOST_DURING_NAVIGATION") == []
+
+
+def test_invalid_backend_reply_returns_structured_unknown(mission, verifier):
+    class InvalidReplyRobot(MockRobotBackend):
+        async def navigate_to(self, target, mission):
+            return None
+
+    async def exercise():
+        state = WorkingMemory(mission=mission)
+        executor = ToolExecutor(ToolRegistry(InvalidReplyRobot(), verifier))
+        decision = AgentDecision(
+            action_type="CALL_TOOL",
+            tool_name="navigate_to",
+            arguments={"target": "B"},
+            decision_summary="check backend contract",
+        )
+        result = await executor.execute(decision, state)
+        assert result.status == "UNKNOWN"
+        assert result.error_code == "TOOL_EXECUTION_UNKNOWN"
+        assert state.uncertain_action == "navigate_to"
+
+    asyncio.run(exercise())
+
+
+def test_cancellation_during_state_refresh_never_dispatches_motion(mission, verifier):
+    async def exercise():
+        outer = None
+
+        class Robot(MockRobotBackend):
+            async def observe_robot_state(self, mission):
+                asyncio.get_running_loop().call_soon(outer.cancel)
+                return await super().observe_robot_state(mission)
+
+        robot = Robot()
+        state = WorkingMemory(mission=mission)
+        executor = ToolExecutor(ToolRegistry(robot, verifier))
+        decision = AgentDecision(
+            action_type="CALL_TOOL",
+            tool_name="navigate_to",
+            arguments={"target": "B"},
+            decision_summary="cancellation before dispatch",
+        )
+        outer = asyncio.create_task(executor.execute(decision, state))
+        with pytest.raises(asyncio.CancelledError):
+            await outer
+        assert robot.calls == []
+        assert state.uncertain_action is None
+
+    asyncio.run(exercise())
+
+
+def test_invalid_observation_never_dispatches_motion(mission, verifier):
+    class InvalidObservationRobot(MockRobotBackend):
+        async def observe_robot_state(self, mission):
+            return None
+
+    async def exercise():
+        robot = InvalidObservationRobot()
+        state = WorkingMemory(mission=mission)
+        executor = ToolExecutor(ToolRegistry(robot, verifier))
+        decision = AgentDecision(
+            action_type="CALL_TOOL",
+            tool_name="navigate_to",
+            arguments={"target": "B"},
+            decision_summary="reject missing sensor result",
+        )
+        result = await executor.execute(decision, state)
+        assert result.status == "FAILED" and result.error_code == "PRECONDITION_FAILED"
+        assert result.observation.source == "observation_error"
+        assert robot.calls == []
+
+    asyncio.run(exercise())
+
+
+def test_cancellation_during_timeout_stop_retains_unknown_action(mission, verifier):
+    class Robot(MockRobotBackend):
+        def __init__(self):
+            super().__init__()
+            self.stopping = asyncio.Event()
+            self.stop_calls = 0
+
+        async def navigate_to(self, target, mission):
+            self.settled = False
+            await asyncio.sleep(60)
+
+        async def cancel_current_action(self):
+            self.stop_calls += 1
+            self.stopping.set()
+            await asyncio.sleep(60)
+
+    async def exercise():
+        robot = Robot()
+        state = WorkingMemory(mission=mission)
+        executor = ToolExecutor(
+            ToolRegistry(robot, verifier, timeouts={"navigate_to": 0.01})
+        )
+        decision = AgentDecision(
+            action_type="CALL_TOOL",
+            tool_name="navigate_to",
+            arguments={"target": "B"},
+            decision_summary="cancel while stop is pending",
+        )
+        state.begin(decision)
+        task = asyncio.create_task(executor.execute(decision, state))
+        await robot.stopping.wait()
+        assert state.uncertain_action == "navigate_to"
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert state.uncertain_action == "navigate_to"
+        assert state.last_error == "MISSION_CANCELLED"
+        assert state.current_action is None
+        assert robot.stop_calls == 1
+
+    asyncio.run(exercise())

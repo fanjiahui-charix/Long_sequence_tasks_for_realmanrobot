@@ -4,7 +4,7 @@
 
 ## 软件验证
 
-最终自动化测试：51 passed；独立复核同样通过。Ruff 格式与 F 类静态检查通过，Git Diff whitespace check 通过。独立环境：Windows / Python 3.13.9 / Pydantic 2.14.3 / PyYAML 6.0.3 / pytest 9.2.0。旧环境 Pydantic 2.12.2 的核心测试也已运行；最终验收使用独立 .venv。
+最终自动化测试：59 passed；关键取消边界修复已独立复核。Ruff 格式与 F 类静态检查通过，Git Diff whitespace check 通过。Windows 上 Python 3.10.11 与 3.13.9 均全量通过；Pydantic 2.14.3 / PyYAML 6.0.3 / pytest 9.2.0。Python 3.10.11 单独安装在临时工作目录，没有改动 ROS 或 FoundationPose 环境。
 
 Wheel 构建、独立安装以及在源码目录外使用 -I 启动完整 Mock Demo 均通过。ROS、FoundationPose CUDA 推理与真实机械动作未在此 Windows 软件环境验证。GitHub CI 配置覆盖 Ubuntu/Windows 与 Python 3.10/3.12；发布后的最新结果见 [Agent software tests](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/tests.yml)。这里保存的是本地软件/API-level 验收记录。
 
@@ -22,7 +22,7 @@ Wheel 构建、独立安装以及在源码目录外使用 -I 启动完整 Mock D
 | Repeated Failure Rate | 22.22% | 22.22% |
 | LLM Calls | 0 | 0 |
 | Average LLM Latency | N/A (no LLM) | N/A (no LLM) |
-| Average Total Execution Time | 0.0086 s | 0.0156 s |
+| Average Total Execution Time | 0.0098 s | 0.0172 s |
 | Retrieved episode injections | 0 | 387 |
 
 场景为正常流程、导航超时、目标未找到、位姿过期、抓取空夹、抓取执行未知、返航掉物、持续失败、实际宽度缺失、动作持续未结束。每组 21/30 完成；其余 9 次是三个故意不可恢复场景的安全终止。该 70% 不代表机器人能力上限。全部可恢复场景在脚本策略下完成，误报完成为 0。
@@ -30,6 +30,8 @@ Wheel 构建、独立安装以及在源码目录外使用 -I 启动完整 Mock D
 B 确实检索并注入历史经验；在该规则策略中没有观察到成功率或调用次数优势，不能据此宣称 Memory 提升了模型决策能力。
 
 ## Experiment A / B：真实 Qwen API + Mock 机器人
+
+该 A/B 统计来自 [58f8139](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/commit/58f813921e689dcd1fcb8efa284bcf5c5cec6fbc)，保留其原始测量值。本轮兼容性修复后重新运行全量软件测试、完整脚本故障集与图片输入 Qwen Demo；A/B 的模型效果统计未作为兼容性修复后的新测量重新报告。
 
 模型：qwen3-vl-plus，JSON Object 输出加客户端 Pydantic 校验。相同故障为 POSE_STALE 和 TOOL_EXECUTION_UNKNOWN，每组各 2 次重复（4 个 Mission）。两组逐任务执行，B 从空数据库开始，在后续任务中检索已验证恢复。
 
@@ -55,7 +57,7 @@ B 确实检索并注入历史经验；在该规则策略中没有观察到成功
 - 终态：COMPLETED；robot_at_A=true，object_held=true。
 - LLM Calls：8（含场景理解）；决策调用：7。
 - 失败：1；验证恢复：1。
-- 场景理解：3.423 秒；从理解到任务完成总时间：24.914 秒。
+- 场景理解：8.136 秒；从理解到任务完成总时间：61.544 秒。
 - 持物证据源为 mock_actual_encoder，标定 origin=synthetic，不能作为真机持物证据。
 
 ## 指标口径与复现
@@ -74,4 +76,4 @@ python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --f
 python -m robot_agent evaluate --llm qwen --scenarios pose_stale,execution_unknown --repetitions 2
 ```
 
-原始 JSONL/SQLite/XML 和汇总结果保存于 gitignored runtime/，单独作为验收记录交付，不加入开源源码包。核心代码/测试指纹 SHA256：bd4e7855b7c01e9608d70e8fb6396d96d66dffbbd9173284213dd262ebcd2efd。
+原始 JSONL/SQLite/XML 和汇总结果保存于 gitignored runtime/，单独作为验收记录交付，不加入开源源码包。核心代码/测试指纹 SHA256：44ce235dbc9b7e4dd3110c153ba47c123e03264c0afb39fa2ee0fa52a8ee15b0。

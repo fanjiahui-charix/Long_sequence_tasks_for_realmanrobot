@@ -6,6 +6,8 @@ import signal
 import subprocess
 from dataclasses import dataclass
 
+from ..deadlines import wait_with_deadline
+
 
 class ProcessFailure(RuntimeError):
     def __init__(self, returncode):
@@ -87,7 +89,7 @@ class ProcessRunner:
         try:
             if job:
                 job.assign_and_resume(process.pid)
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout_s)
+            stdout, stderr = await wait_with_deadline(process.communicate(), timeout_s)
             result = ProcessOutput(
                 process.returncode,
                 stdout.decode("utf-8", errors="replace"),

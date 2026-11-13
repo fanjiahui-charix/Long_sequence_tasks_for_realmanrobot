@@ -36,6 +36,7 @@ flowchart TD
 | llm_adapter.py / prompts | Qwen-compatible HTTP, optional compatible/Ollama transports, server JSON mode and mandatory local schema validation |
 | agent.py | One decision → one tool → observation → state/memory update → next decision |
 | tool_registry.py / executor.py | Argument allowlists, preconditions, fresh execution-boundary telemetry, deadlines and cancellation |
+| deadlines.py | Cancellation-preserving deadline waits across Python 3.10+, including simultaneous completion/cancel races |
 | state.py | Current mission/location/object/pose/holding state, actions, errors, retries, motion epoch and uncertainty latch |
 | verifier.py | Deterministic navigation, perception, measured-width and final-goal checks |
 | memory/episodic.py | SQLite filtering, event/state persistence and verified recovery promotion |

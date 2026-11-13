@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 
+from .deadlines import wait_with_deadline
 from .schemas import Observation, SkillReply, ToolResult, Verification
 from .tool_registry import ToolRejected
 
@@ -13,26 +14,31 @@ class ToolExecutor:
 
     async def observe(self, mission):
         try:
-            return await asyncio.wait_for(
-                self.registry.backend.observe_robot_state(mission),
-                self.registry.timeouts["observe_robot_state"],
+            return Observation.model_validate(
+                await wait_with_deadline(
+                    self.registry.backend.observe_robot_state(mission),
+                    self.registry.timeouts["observe_robot_state"],
+                )
             )
         except Exception as exc:
             return Observation(source="observation_error", notes=[type(exc).__name__])
 
-    async def _cancel_unknown(self, name, state, dispatched):
+    async def _cancel_unknown(self, name, state, dispatched, *, attempt_stop=True):
         if dispatched and name in {"navigate_to", "grasp_object"}:
             state.uncertain_action = name
             state.uncertain_since = time.time()
             state.grasp_state = "UNKNOWN"
             state.current_location = None
             state.last_error = "MISSION_CANCELLED"
-            try:
-                await asyncio.shield(
-                    asyncio.wait_for(self.registry.backend.cancel_current_action(), 2.0)
-                )
-            except (Exception, asyncio.CancelledError):
-                pass
+            if attempt_stop:
+                try:
+                    await asyncio.shield(
+                        wait_with_deadline(
+                            self.registry.backend.cancel_current_action(), 2.0
+                        )
+                    )
+                except (Exception, asyncio.CancelledError):
+                    pass
         state.current_action = None
 
     async def execute(self, decision, state):
@@ -65,10 +71,11 @@ class ToolExecutor:
                 observation = await self.observe(state.mission)
                 reply = SkillReply()
             else:
-                reply = await asyncio.wait_for(
+                reply = await wait_with_deadline(
                     self.registry.invoke(name, args, state, pose=pose),
                     self.registry.timeouts[name],
                 )
+                reply = SkillReply.model_validate(reply)
         except ToolRejected as exc:
             reply = SkillReply(status="FAILED", error_code=exc.code)
         except asyncio.CancelledError:
@@ -76,10 +83,19 @@ class ToolExecutor:
             raise
         except asyncio.TimeoutError:
             reply = SkillReply(status="TIMEOUT", error_code="TOOL_TIMEOUT")
+            if dispatched and name in {"navigate_to", "grasp_object"}:
+                # Stop itself is awaitable and may be interrupted. Latch before
+                # cleanup, so every exit path preserves physical uncertainty.
+                state.uncertain_action = name
+                state.uncertain_since = time.time()
+                state.last_error = "TOOL_TIMEOUT"
             try:
-                await asyncio.wait_for(
+                await wait_with_deadline(
                     self.registry.backend.cancel_current_action(), 2.0
                 )
+            except asyncio.CancelledError:
+                await self._cancel_unknown(name, state, dispatched, attempt_stop=False)
+                raise
             except Exception:
                 pass  # Cancellation acknowledgement never clears the physical interlock.
         except Exception as exc:
