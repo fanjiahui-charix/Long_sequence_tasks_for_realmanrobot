@@ -2,7 +2,7 @@
 
 **RealMan 移动操作平台 · ReAct · Working Memory · Episodic Memory**
 
-[![CI](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml)
+[![CI](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml) [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml) [![Platform](https://img.shields.io/badge/Platform-RealMan_Mobile_Manipulator-007EC6)](docs/HARDWARE_VALIDATION.md) [![Perception](https://img.shields.io/badge/6D_Pose-YOLO--seg_%7C_FoundationPose-2E8B57)](vision_grasp/integration) [![License: MIT](https://img.shields.io/badge/License-MIT-4C8A63)](LICENSE)
 
 面向自然语言指令驱动的长时序移动操作任务，构建结合 **ReAct 决策与双层记忆**的具身 Agent 框架。系统根据当前任务状态、环境反馈与历史经验，动态编排导航、目标定位、抓取与返回等机器人技能。
 
@@ -21,6 +21,23 @@ RealMan 移动操作平台演示 · [观看原速视频](docs/media/project-demo
 - **基于 ReAct 的闭环决策**：结合任务目标、当前观察与历史经验，逐轮选择技能，并根据执行反馈调整后续步骤。
 - **工作记忆与情景记忆协同**：Working Memory 维护实时任务上下文，Episodic Memory 积累历史执行中形成的条件性经验，共同参与当前决策。
 - **面向决策的经验凝练**：复盘历史中的前置条件遗漏、动作顺序问题与无效重试，将其总结为适用条件、规划约束和注意事项，供后续任务调用。
+
+```mermaid
+flowchart LR
+    V["独立状态校验"] -->|状态更新| W[("Working Memory<br/>实时任务与持物状态")]
+    V -->|恢复完成 / 任务结束| R["Qwen 历史决策复盘<br/>经验凝练"]
+    R --> E[("Episodic Memory<br/>SQLite 历史规划约束")]
+    W --> A["ReAct 闭环决策"]
+    E -->|检索相关经验| A
+    U["自然语言指令 + 场景图"] --> P["任务解析"]
+    P --> A
+    A -->|Tool Calling| S["机器人技能执行<br/>导航 / 定位 / 抓取 / 观察"]
+    S -->|实时反馈 Observation| V
+    classDef process fill:#f8fafc,stroke:#cbd5e1,color:#1e293b;
+    classDef memory fill:#f0f6ff,stroke:#94a3b8,color:#1e293b;
+    class U,P,A,S,V,R process;
+    class W,E memory;
+```
 
 ## 任务场景
 
@@ -144,8 +161,7 @@ python examples/reflection_demo.py --output-dir runtime/reflection
 
 代码入口：[ReAct 决策](robot_agent/agent.py) · [Working Memory](robot_agent/state.py) · [Episodic Memory](robot_agent/memory/episodic.py) · [经验凝练](robot_agent/memory/consolidation.py) · [机器人适配](robot_agent/adapters)
 
-<details>
-<summary>仓库代码导航</summary>
+### 仓库代码导航
 
 ```text
 robot_agent/                 # Agent 决策、记忆与技能调用
@@ -159,8 +175,6 @@ docs/                       # 设计、接口与部署文档
 ```
 
 机器人集成代码与内置的算法、驱动分别放置；第三方组件授权见 [NOTICE](NOTICE.md)。
-
-</details>
 
 ## License
 
