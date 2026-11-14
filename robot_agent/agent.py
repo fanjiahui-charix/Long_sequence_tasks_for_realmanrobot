@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import time
 import asyncio
+import copy
 
 from .executor import ToolExecutor
 from .memory.consolidation import ExperienceConsolidator
-from .schemas import AgentDecision, Episode, Verification
+from .memory.planning import classify_failure
+from .schemas import AgentDecision, DecisionEvidence, Episode, Verification
 from .state import WorkingMemory
 from .trace import MissionMetrics, MissionReport, TraceRecorder
 
@@ -72,6 +74,8 @@ class ReActAgent:
         pending = []
         seen_failures = set()
         actions = []
+        decision_history = []
+        recorded_episode_ids = set()
         invalid_decisions = 0
         consolidation_attempts = {}
         consolidator = ExperienceConsolidator(
@@ -98,6 +102,8 @@ class ReActAgent:
                     "failure_type": e.failure_type,
                     "recovery_strategy": e.recovery_strategy,
                     "verified": e.verified,
+                    "failure_attribution": e.failure_attribution,
+                    "decision_error_verified": e.decision_error_verified,
                     "experience": e.experience.model_dump(mode="json"),
                 }
                 for e in episodes
@@ -191,6 +197,88 @@ class ReActAgent:
             )
             return True
 
+        def evidence_for(failure_turn):
+            index = next(
+                i
+                for i, item in enumerate(decision_history)
+                if item.turn == failure_turn
+            )
+            prefix = decision_history[max(0, index - 2) : index + 1]
+            following = decision_history[index + 1 :]
+            return prefix + following[-(12 - len(prefix)) :]
+
+        def record_decision(decision, before, *, result=None, verification=None):
+            record = DecisionEvidence(
+                turn=state.turn_count,
+                decision=decision,
+                state_before=before,
+                state_after=state.context(),
+                tool_result=result,
+                verification=verification,
+            )
+            decision_history.append(record)
+            trace.add("decision_evidence", record=record.model_dump(mode="json"))
+            return record
+
+        def remember_failure(name, error, record, observation, *, carry_required=False):
+            metrics.failures += 1
+            failure_key = (name, error)
+            if failure_key in seen_failures:
+                metrics.repeated_failures += 1
+            seen_failures.add(failure_key)
+            attribution, decision_error = classify_failure(record)
+            before = record.state_before
+            case_key = (
+                name,
+                error,
+                record.decision.arguments.get("target"),
+                before.get("current_location"),
+                before.get("grasp_state"),
+                before.get("pose") is not None,
+                bool(before.get("uncertain_action")),
+                attribution,
+            )
+            # Preserve every skill event while reflecting repeated unchanged
+            # mistakes as one case, rather than duplicating the same lesson.
+            existing = (
+                next((item for item in pending if item["case_key"] == case_key), None)
+                if decision_error
+                else None
+            )
+            if existing is not None:
+                if self.memory:
+                    self.memory.update_decision_trace(
+                        existing["episode_id"], evidence_for(existing["failure_turn"])
+                    )
+                return
+            episode = Episode(
+                mission_id=mission.mission_id,
+                task_type=mission.task_type,
+                object_category=mission.object_category,
+                executed_skill=name,
+                failure_type=error,
+                failure_observation=observation.model_dump(mode="json"),
+                decision_trace=evidence_for(record.turn),
+                failure_turn=record.turn,
+                failure_attribution=attribution,
+                decision_error_verified=decision_error,
+            )
+            if self.memory:
+                self.memory.save(episode)
+                recorded_episode_ids.add(episode.episode_id)
+            pending.append(
+                {
+                    "episode_id": episode.episode_id,
+                    "skill": name,
+                    "error": error,
+                    "action_index": len(actions),
+                    "target": record.decision.arguments.get("target"),
+                    "carry_required": carry_required,
+                    "failure_turn": record.turn,
+                    "case_key": case_key,
+                }
+            )
+
         for _ in range(self.max_turns):
             context = {
                 "mission": mission.model_dump(mode="json"),
@@ -198,6 +286,7 @@ class ReActAgent:
                 "episodic_memory": episodes,
                 "tools": self.registry.describe(),
             }
+            before_decision = copy.deepcopy(context["working_memory"])
             tick = time.perf_counter()
             requests_before = getattr(self.client, "request_count", None)
             metrics.decision_calls += 1
@@ -239,15 +328,36 @@ class ReActAgent:
                 state.current_action = None
                 if final.verified:
                     state.mission_status = "COMPLETED"
+                    record_decision(decision, before_decision, verification=final)
+                    # A previously rejected completion claim can be reconciled
+                    # by the independent final verifier, without a new tool.
+                    for item in list(pending):
+                        if item["skill"] != "FINISH":
+                            continue
+                        if self.memory:
+                            self.memory.mark_recovered(
+                                item["episode_id"],
+                                actions[item["action_index"] :],
+                                final.evidence,
+                                decision_trace=evidence_for(item["failure_turn"]),
+                            )
+                        metrics.recoveries += 1
+                        pending.remove(item)
                     break
                 metrics.finish_rejections += 1
                 state.last_error = "FINAL_GOAL_NOT_VERIFIED"
+                record = record_decision(decision, before_decision, verification=final)
+                remember_failure(
+                    "FINISH", state.last_error, record, state.last_observation
+                )
+                episodes = retrieve("FINISH", state.last_error)
                 if metrics.finish_rejections >= 3:
                     state.mission_status = "REQUEST_HELP"
                     break
                 continue
             result = await executor.execute(decision, state)
             actions.append(result.tool_name)
+            record = record_decision(decision, before_decision, result=result)
             metrics.tool_execution_sec += result.duration_sec
             trace.add("tool", result=result.model_dump(mode="json"))
             if self.memory:
@@ -296,7 +406,10 @@ class ReActAgent:
                         }
                         if self.memory:
                             recovered_episode = self.memory.mark_recovered(
-                                item["episode_id"], strategy, evidence
+                                item["episode_id"],
+                                strategy,
+                                evidence,
+                                decision_trace=evidence_for(item["failure_turn"]),
                             )
                         metrics.recoveries += 1
                         trace.add(
@@ -315,29 +428,12 @@ class ReActAgent:
                 if self.memory or not pending:
                     episodes = retrieve()
             else:
-                metrics.failures += 1
-                failure_key = (result.tool_name, result.error_code)
-                if failure_key in seen_failures:
-                    metrics.repeated_failures += 1
-                seen_failures.add(failure_key)
-                episode = Episode(
-                    mission_id=mission.mission_id,
-                    object_category=mission.object_category,
-                    executed_skill=result.tool_name,
-                    failure_type=result.error_code,
-                    failure_observation=result.observation.model_dump(mode="json"),
-                )
-                if self.memory:
-                    self.memory.save(episode)
-                pending.append(
-                    {
-                        "episode_id": episode.episode_id,
-                        "skill": result.tool_name,
-                        "error": result.error_code,
-                        "action_index": len(actions),
-                        "target": result.arguments.get("target"),
-                        "carry_required": result.carry_required,
-                    }
+                remember_failure(
+                    result.tool_name,
+                    result.error_code,
+                    record,
+                    result.observation,
+                    carry_required=result.carry_required,
                 )
                 episodes = retrieve(result.tool_name, result.error_code)
                 if (
@@ -360,6 +456,13 @@ class ReActAgent:
         if self.memory:
             terminal_summary_attempted = False
             for episode in self.memory.pending_experiences(mission.mission_id):
+                if episode.episode_id not in recorded_episode_ids:
+                    continue  # A reused mission ID cannot relabel an earlier run's turns.
+                if episode.failure_turn is None:
+                    continue  # Archived summaries without decision evidence are not fabricated.
+                episode = self.memory.update_decision_trace(
+                    episode.episode_id, evidence_for(episode.failure_turn)
+                )
                 terminal_summary_attempted = (
                     await consolidate_episode(episode) or terminal_summary_attempted
                 )

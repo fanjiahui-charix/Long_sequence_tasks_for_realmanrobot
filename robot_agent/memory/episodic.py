@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from pathlib import Path
 
-from ..schemas import Episode, ExperienceSummary
+from ..schemas import DecisionEvidence, Episode, ExperienceSummary
 
 
 class EpisodicMemory:
@@ -48,15 +49,33 @@ class EpisodicMemory:
         self.connection.commit()
         return episode.episode_id
 
+    @staticmethod
+    def _decode(payload: str) -> Episode:
+        """Project old summaries as pending without rewriting their stored JSON."""
+        data = json.loads(payload)
+        experience = data.get("experience")
+        if experience is not None and (
+            not isinstance(experience, dict) or experience.get("format_version") != 2
+        ):
+            data.update(
+                experience=None,
+                experience_status="PENDING",
+                experience_provider=None,
+                experience_error="EXPERIENCE_REBUILD_REQUIRED",
+            )
+        return Episode.model_validate(data)
+
     def get(self, episode_id: str) -> Episode:
         row = self.connection.execute(
             "SELECT payload FROM episodes WHERE episode_id=?", (episode_id,)
         ).fetchone()
         if row is None:
             raise KeyError(episode_id)
-        return Episode.model_validate_json(row[0])
+        return self._decode(row[0])
 
-    def mark_recovered(self, episode_id, strategy, evidence) -> Episode:
+    def mark_recovered(
+        self, episode_id, strategy, evidence, decision_trace=None
+    ) -> Episode:
         """Record recovery evidence without producing model analysis."""
         payload = self.get(episode_id).model_dump()
         payload.update(
@@ -69,17 +88,62 @@ class EpisodicMemory:
             experience_provider=None,
             experience_error=None,
         )
+        if decision_trace is not None:
+            payload["decision_trace"] = [
+                item.model_dump(mode="json")
+                if isinstance(item, DecisionEvidence)
+                else item
+                for item in decision_trace
+            ]
         episode = Episode.model_validate(payload)
         self.save(episode)
         return episode
 
+    def update_decision_trace(self, episode_id: str, decision_trace) -> Episode:
+        """Refresh process evidence without changing its deterministic attribution."""
+        episode = self.get(episode_id)
+        trace = [
+            DecisionEvidence.model_validate(
+                item.model_dump(mode="json")
+                if isinstance(item, DecisionEvidence)
+                else item
+            )
+            for item in decision_trace
+        ]
+        if trace == episode.decision_trace:
+            return episode
+        payload = episode.model_dump()
+        payload.update(
+            decision_trace=[item.model_dump(mode="json") for item in trace],
+            experience=None,
+            experience_status="PENDING",
+            experience_provider=None,
+            experience_error=None,
+        )
+        updated = Episode.model_validate(payload)
+        self.save(updated)
+        return updated
+
     def save_experience(
         self, episode_id: str, summary: ExperienceSummary, provider: str
     ) -> Episode:
-        """Save analysis without changing the recovery's verification status."""
-        payload = self.get(episode_id).model_dump()
+        """Save sourced constraints without changing deterministic verdicts."""
+        episode = self.get(episode_id)
+        if isinstance(summary, ExperienceSummary):
+            summary = summary.model_dump(mode="json")
+        summary = ExperienceSummary.model_validate(summary)
+        available_turns = {item.turn for item in episode.decision_trace}
+        if (
+            episode.failure_turn is None
+            or episode.failure_turn not in summary.source_turns
+            or not set(summary.source_turns).issubset(available_turns)
+        ):
+            raise ValueError(
+                "experience sources must include the recorded failure turn"
+            )
+        payload = episode.model_dump()
         payload.update(
-            experience=ExperienceSummary.model_validate(summary).model_dump(),
+            experience=summary.model_dump(mode="json"),
             experience_status="READY",
             experience_provider=provider,
             experience_error=None,
@@ -106,7 +170,7 @@ class EpisodicMemory:
             (mission_id,),
         )
         try:
-            episodes = (Episode.model_validate_json(row[0]) for row in rows)
+            episodes = (self._decode(row[0]) for row in rows)
             return [
                 episode
                 for episode in episodes
@@ -124,7 +188,7 @@ class EpisodicMemory:
         task_type="mobile_pick_and_return",
         limit=3,
     ):
-        clauses, values = ["task_type=?", "verified=1"], [task_type]
+        clauses, values = ["task_type=?"], [task_type]
         for column, value in [
             ("executed_skill", skill),
             ("failure_type", failure_type),
@@ -134,8 +198,8 @@ class EpisodicMemory:
                 clauses.append(column + "=?")
                 values.append(value)
         limit = max(1, min(int(limit), 3))
-        # Old JSON payloads default to PENDING. Limit only after READY filtering,
-        # so newer unsummarized rows cannot hide older usable experience.
+        # Apply eligibility after decoding JSON, then limit: both verified
+        # recoveries and verified decision errors can supply READY constraints.
         rows = self.connection.execute(
             "SELECT payload FROM episodes WHERE "
             + " AND ".join(clauses)
@@ -145,8 +209,10 @@ class EpisodicMemory:
         found = []
         try:
             for row in rows:
-                episode = Episode.model_validate_json(row[0])
-                if not episode.verified or episode.experience_status != "READY":
+                episode = self._decode(row[0])
+                if episode.experience_status != "READY" or not (
+                    episode.verified or episode.decision_error_verified
+                ):
                     continue
                 found.append(episode)
                 if len(found) >= limit:

@@ -1,105 +1,382 @@
 {
   "provenance": {
-    "evaluation": "Mock/API-level Evaluation",
     "date": "2026-11-14",
-    "decision_provider": "qwen",
-    "model": "qwen3-vl-plus",
-    "source_base_commit": "69f51662ddcbf0e7ca09e013a4a7b6c54e74c390",
-    "source_code_sha256": "56f46560eade81f9515c38e4d2d15bd231926d77be2e6746557a4577e9301011",
-    "selection": "Projection of actual model decision inputs; storage verification and provenance are separate metadata."
+    "evaluation": "Mock/API-level Evaluation",
+    "source_base_commit": "177bb706bd812e92aa461bf5a7e790df2b772eca",
+    "source_code_sha256": "dbe9dc929b5be595db40543712b85545e2992625ec4716ace29c09d6e8a29ee3",
+    "mission_input": "prevalidated demo MissionSpec; no new image-understanding evaluation",
+    "historical_policy": "controlled faulty policy; not spontaneous Qwen errors",
+    "reflection_and_followup": "actual Qwen API calls; unedited structured outputs",
+    "summary_status": "advisory planning reflection; deterministic attribution and completion checks remain separate"
+  },
+  "evaluation": "Mock/API-level Evaluation",
+  "run_id": "03c589c3",
+  "database_file": "history-03c589c3.sqlite3",
+  "trace_files": {
+    "historical": "historical-03c589c3.jsonl",
+    "current": "current-03c589c3.jsonl"
+  },
+  "historical_decision_origin": "controlled faulty policy; not spontaneous model errors",
+  "reflection_provider": "qwen",
+  "model": "qwen-plus",
+  "historical_status": "REQUEST_HELP",
+  "historical_failure_count": 3,
+  "historical_dispatched_tools": [
+    "navigate_to"
+  ],
+  "episode_count": 1,
+  "prior_ep_id": "1bf9fe6c-ff90-4df4-86e8-f564dc001972",
+  "historical_decision_evidence": [
+    {
+      "turn": 1,
+      "decision": {
+        "action_type": "CALL_TOOL",
+        "tool_name": "navigate_to",
+        "arguments": {
+          "target": "B"
+        }
+      },
+      "before": {
+        "current_location": "A",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": null,
+        "retry_counts": {},
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "after": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": null,
+        "retry_counts": {},
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "result": {
+        "status": "SUCCEEDED",
+        "error_code": null,
+        "dispatched": true,
+        "postconditions_verified": true
+      }
+    },
+    {
+      "turn": 2,
+      "decision": {
+        "action_type": "CALL_TOOL",
+        "tool_name": "grasp_object",
+        "arguments": {
+          "object_category": "glasses_case"
+        }
+      },
+      "before": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": null,
+        "retry_counts": {},
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "after": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": "POSE_STALE",
+        "retry_counts": {
+          "grasp_object:POSE_STALE": 1
+        },
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "result": {
+        "status": "FAILED",
+        "error_code": "POSE_STALE",
+        "dispatched": false,
+        "postconditions_verified": false
+      }
+    },
+    {
+      "turn": 3,
+      "decision": {
+        "action_type": "CALL_TOOL",
+        "tool_name": "grasp_object",
+        "arguments": {
+          "object_category": "glasses_case"
+        }
+      },
+      "before": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": "POSE_STALE",
+        "retry_counts": {
+          "grasp_object:POSE_STALE": 1
+        },
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "after": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": "POSE_STALE",
+        "retry_counts": {
+          "grasp_object:POSE_STALE": 2
+        },
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "result": {
+        "status": "FAILED",
+        "error_code": "POSE_STALE",
+        "dispatched": false,
+        "postconditions_verified": false
+      }
+    },
+    {
+      "turn": 4,
+      "decision": {
+        "action_type": "CALL_TOOL",
+        "tool_name": "grasp_object",
+        "arguments": {
+          "object_category": "glasses_case"
+        }
+      },
+      "before": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": "POSE_STALE",
+        "retry_counts": {
+          "grasp_object:POSE_STALE": 2
+        },
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "after": {
+        "current_location": "B",
+        "start_location": "A",
+        "source_location": "B",
+        "grasp_state": "NOT_HELD",
+        "holding_target": false,
+        "pose_available": false,
+        "pose_reference_matches_current": false,
+        "uncertain_action": null,
+        "last_error": "POSE_STALE",
+        "retry_counts": {
+          "grasp_object:POSE_STALE": 3
+        },
+        "arm_idle": true,
+        "motion_settled": true
+      },
+      "result": {
+        "status": "FAILED",
+        "error_code": "POSE_STALE",
+        "dispatched": false,
+        "postconditions_verified": false
+      }
+    }
+  ],
+  "reflected_experience": {
+    "format_version": 2,
+    "applicability": "移动抓取任务中，目标为glasses_case且当前位姿无效（pose_available=false）时",
+    "decision_issue": "未检查pose_available就直接调用grasp_object；应先定位物体再抓取",
+    "planning_constraints": [
+      "若pose_available为false，先调用locate_object而非grasp_object；",
+      "调用grasp_object前必须验证pose_available为true且pose_reference_matches_current为true；",
+      "同一错误（POSE_STALE）连续失败3次后，不再重试grasp_object，须先重新locate_object或请求帮助。"
+    ],
+    "lesson": "位姿无效时必须先定位再抓取，不能跳过观察直接执行抓取动作。",
+    "precautions": [
+      "pose_available为false时，grasp_object前置条件不满足，禁止调用；",
+      "locate_object成功后需确认pose_available和pose_reference_matches_current均为true；",
+      "重试grasp_object仅在新位姿已确认有效后才允许；",
+      "连续3次POSE_STALE失败后，停止自动重试并触发人工介入请求。"
+    ],
+    "source_turns": [
+      1,
+      2,
+      3,
+      4
+    ]
   },
   "working_memory": {
-    "mission_status": "RUNNING",
     "current_location": "B",
-    "object_detected": true,
     "pose": null,
     "grasp_state": "NOT_HELD",
-    "last_error": "POSE_STALE"
+    "last_error": null
   },
   "episodic_memory": {
-    "episode_id": "1df0afa5-8462-4d4d-95fb-4e5ec545b783",
+    "episode_id": "1bf9fe6c-ff90-4df4-86e8-f564dc001972",
     "executed_skill": "grasp_object",
     "failure_type": "POSE_STALE",
-    "recovery_strategy": [
-      "locate_object",
-      "grasp_object"
-    ],
-    "verified": true,
+    "recovery_strategy": [],
+    "verified": false,
+    "failure_attribution": "DECISION_ERROR",
+    "decision_error_verified": true,
     "experience": {
-      "trigger": "移动抓取并返回任务中，抓取眼镜盒时因位姿过期（POSE_STALE）失败，机器人位于B点、机械臂空闲且运动已停止，但目标物体未被检测到。",
-      "cause_hypothesis": "具体原因尚未确认；错误与恢复结果不足以确定物理根因。",
-      "cause_status": "UNKNOWN",
-      "lesson": "当抓取因位姿过期失败且机器人已就位、机械臂空闲时，可尝试重新定位物体并再次抓取；本次恢复在合成反馈中验证成功，表明该流程在该模拟条件下可行，但不保证物理世界复现。",
+      "format_version": 2,
+      "applicability": "移动抓取任务中，目标为glasses_case且当前位姿无效（pose_available=false）时",
+      "decision_issue": "未检查pose_available就直接调用grasp_object；应先定位物体再抓取",
+      "planning_constraints": [
+        "若pose_available为false，先调用locate_object而非grasp_object；",
+        "调用grasp_object前必须验证pose_available为true且pose_reference_matches_current为true；",
+        "同一错误（POSE_STALE）连续失败3次后，不再重试grasp_object，须先重新locate_object或请求帮助。"
+      ],
+      "lesson": "位姿无效时必须先定位再抓取，不能跳过观察直接执行抓取动作。",
       "precautions": [
-        "仅当机器人已到达目标区域、机械臂空闲且运动停止后，才执行重新定位与抓取",
-        "重新定位前必须通过独立观测（如视觉重检）确认物体存在与大致位置，不能依赖原位姿",
-        "合成验证（如mock_encoder）仅说明流程逻辑通顺，不代表真实传感器或物理抓取成功",
-        "若重复定位仍无法检出物体，应暂停并上报，避免无效循环",
-        "恢复动作前需确保导航与机械臂状态均稳定，避免运动干扰导致新错误"
+        "pose_available为false时，grasp_object前置条件不满足，禁止调用；",
+        "locate_object成功后需确认pose_available和pose_reference_matches_current均为true；",
+        "重试grasp_object仅在新位姿已确认有效后才允许；",
+        "连续3次POSE_STALE失败后，停止自动重试并触发人工介入请求。"
+      ],
+      "source_turns": [
+        1,
+        2,
+        3,
+        4
       ]
     }
   },
-  "stored_episode": {
-    "source_mission_id": "d7d49a19-dc61-4db9-ae9a-683a9b12936b",
-    "experience_status": "READY",
-    "experience_provider": "qwen",
-    "verification_result": {
-      "widths_mm": [
-        25.0,
-        25.0,
-        25.0
-      ],
-      "calibration_id": "mock-only-v1",
-      "calibration_origin": "synthetic",
-      "sources": [
-        "mock_actual_encoder"
-      ],
-      "grasp_state": "HELD",
-      "location": "B"
-    }
-  },
+  "injected_episode_ids": [
+    "1bf9fe6c-ff90-4df4-86e8-f564dc001972"
+  ],
   "next_decision": {
     "action_type": "CALL_TOOL",
     "tool_name": "locate_object",
     "arguments": {
       "object_category": "glasses_case"
     },
-    "decision_summary": "因 last_error 为 POSE_STALE 且 pose 为空, 需重新定位目标物体以获取有效位姿参考；当前机器人已就位 B、机械臂空闲、运动稳定，符合恢复条件。"
+    "decision_summary": "当前位于B但未检测到目标物体，且pose为null（POSE_STALE），需先定位黑色眼镜盒以获取有效位姿。"
   },
-  "execution": {
-    "mission_id": "710486d4-f9b0-458a-89f3-34c05e3519e2",
-    "status": "COMPLETED",
-    "decision_calls": 7,
-    "actual_llm_requests": 9,
-    "consolidation_llm_calls": 1,
-    "failures": 1,
-    "verified_recoveries": 1,
-    "historical_experience_in_initial_context": true,
-    "historical_experience_in_failure_context": true,
-    "final_verification": {
-      "verified": true,
-      "error_code": null,
-      "grasp_state": "HELD",
-      "evidence": {
-        "robot_at_start": true,
-        "object_held": true,
-        "navigation": {
-          "location": "A",
-          "localization_confirmed": true
-        },
-        "grasp": {
-          "widths_mm": [
-            25.0,
-            25.0,
-            25.0
-          ],
-          "calibration_id": "mock-only-v1",
-          "calibration_origin": "synthetic",
-          "sources": [
-            "mock_actual_encoder"
-          ]
-        }
+  "mission_completed": true,
+  "final_verification": {
+    "verified": true,
+    "error_code": null,
+    "grasp_state": "HELD",
+    "evidence": {
+      "robot_at_start": true,
+      "object_held": true,
+      "navigation": {
+        "location": "A",
+        "localization_confirmed": true
+      },
+      "grasp": {
+        "widths_mm": [
+          25.0,
+          25.0,
+          25.0
+        ],
+        "calibration_id": "mock-only-v1",
+        "calibration_origin": "synthetic",
+        "sources": [
+          "mock_actual_encoder"
+        ]
       }
     }
-  }
+  },
+  "llm_calls": 6,
+  "reflection_llm_calls": 1,
+  "decision_calls": 5,
+  "metrics": {
+    "historical": {
+      "decision_calls": 4,
+      "llm_calls": 1,
+      "llm_latency_sec": [
+        7.813443300001381
+      ],
+      "decision_latency_sec": [
+        0.00010629999815137126,
+        9.359999967273325e-05,
+        0.00010009999823523685,
+        8.849999721860513e-05
+      ],
+      "tool_execution_sec": 0.0006865000032121316,
+      "memory_retrieval_sec": 0.0008696999939274974,
+      "mission_understanding_sec": 0.0,
+      "total_execution_sec": 7.838079300003301,
+      "failures": 3,
+      "recoveries": 0,
+      "repeated_failures": 2,
+      "finish_rejections": 0,
+      "episodes_retrieved": 0,
+      "consolidation_calls": 1,
+      "consolidation_llm_calls": 1,
+      "consolidation_latency_sec": [
+        7.819695000001957
+      ],
+      "consolidation_failures": 0,
+      "experiences_created": 1
+    },
+    "current": {
+      "decision_calls": 5,
+      "llm_calls": 5,
+      "llm_latency_sec": [
+        2.6273987000022316,
+        2.9731050999980653,
+        3.6046425999993517,
+        2.6500898000012967,
+        2.636317300002702
+      ],
+      "decision_latency_sec": [
+        2.628264599999966,
+        2.9740578000019013,
+        3.6059390000009444,
+        2.6510031999969215,
+        2.6378452999997535
+      ],
+      "tool_execution_sec": 0.0016097999978228472,
+      "memory_retrieval_sec": 0.00279670000236365,
+      "mission_understanding_sec": 0.0,
+      "total_execution_sec": 14.532773999999336,
+      "failures": 0,
+      "recoveries": 0,
+      "repeated_failures": 0,
+      "finish_rejections": 0,
+      "episodes_retrieved": 5,
+      "consolidation_calls": 0,
+      "consolidation_llm_calls": 0,
+      "consolidation_latency_sec": [],
+      "consolidation_failures": 0,
+      "experiences_created": 0
+    }
+  },
+  "interpretation": "Records actual constraint injection and a compatible next decision; not a causal performance comparison."
 }

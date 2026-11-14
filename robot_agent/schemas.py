@@ -191,16 +191,35 @@ class ToolResult(Contract):
     carry_required: bool = False
 
 
-class ExperienceSummary(Contract):
-    """A model's bounded analysis, never a verified physical root cause."""
+class DecisionEvidence(Contract):
+    """One runtime-recorded decision and its before/after execution evidence."""
 
-    trigger: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=180)
+    turn: int = Field(ge=1, strict=True)
+    decision: AgentDecision
+    state_before: dict[str, Any]
+    state_after: dict[str, Any]
+    tool_result: ToolResult | None = None
+    verification: Verification | None = None
+
+
+class ExperienceSummary(Contract):
+    """Bounded planning constraints reflected from referenced decision turns."""
+
+    format_version: Literal[2] = 2
+    applicability: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
     ]
-    cause_hypothesis: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
-    ]
-    cause_status: Literal["UNKNOWN", "HYPOTHESIS"] = "UNKNOWN"
+    decision_issue: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+        ]
+        | None
+    ) = None
+    planning_constraints: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
+        ]
+    ] = Field(min_length=1, max_length=5)
     lesson: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=400)
     ]
@@ -209,6 +228,9 @@ class ExperienceSummary(Contract):
             str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
         ]
     ] = Field(min_length=1, max_length=5)
+    source_turns: list[Annotated[int, Field(ge=1, strict=True)]] = Field(
+        min_length=1, max_length=8
+    )
 
 
 class Episode(Contract):
@@ -216,9 +238,15 @@ class Episode(Contract):
     mission_id: str
     task_type: str = "mobile_pick_and_return"
     object_category: str
-    executed_skill: ToolName
+    executed_skill: ToolName | Literal["FINISH"]
     failure_type: str | None = None
     failure_observation: dict[str, Any] = Field(default_factory=dict)
+    decision_trace: list[DecisionEvidence] = Field(default_factory=list, max_length=12)
+    failure_turn: int | None = Field(default=None, ge=1, strict=True)
+    failure_attribution: Literal[
+        "DECISION_ERROR", "EXECUTION_FAILURE", "UNDETERMINED"
+    ] = "UNDETERMINED"
+    decision_error_verified: StrictBool = False
     recovery_strategy: list[ToolName] = Field(default_factory=list)
     recovery_result: Literal["UNVERIFIED", "VERIFIED_SUCCESS", "FAILED"] = "UNVERIFIED"
     verification_result: dict[str, Any] = Field(default_factory=dict)
@@ -234,10 +262,11 @@ class Episode(Contract):
         if self.verified != (self.recovery_result == "VERIFIED_SUCCESS"):
             raise ValueError("verified flag must match verified recovery result")
         if self.verified and (
-            not self.recovery_strategy or not self.verification_result
+            not self.verification_result
+            or (self.executed_skill != "FINISH" and not self.recovery_strategy)
         ):
             raise ValueError(
-                "verified recovery needs strategy and verification evidence"
+                "verified recovery needs evidence and a tool strategy unless FINISH"
             )
         return self
 
@@ -245,4 +274,14 @@ class Episode(Contract):
     def valid_experience(self):
         if (self.experience_status == "READY") != (self.experience is not None):
             raise ValueError("only READY experience may contain a summary")
+        return self
+
+    @model_validator(mode="after")
+    def verified_decision_error(self):
+        if self.decision_error_verified and (
+            self.failure_attribution != "DECISION_ERROR"
+            or self.failure_turn is None
+            or self.failure_turn not in {item.turn for item in self.decision_trace}
+        ):
+            raise ValueError("verified decision error needs its failed decision turn")
         return self

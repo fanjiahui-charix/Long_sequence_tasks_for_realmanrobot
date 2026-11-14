@@ -37,7 +37,7 @@ python -m robot_agent demo --memory --fault POSE_STALE --output-dir runtime/memo
 
 默认使用 Mock Backend 和脚本化决策，无需 API Key。脚本化决策及其经验摘要用于离线演示，LLM 调用数记为 0。
 
-`POSE_STALE` 注入一次位姿失效。Agent 重新定位后继续抓取与返航，Verifier 检查是否返回 A 且仍持有目标；经验总结步骤从该过程提取失败原因假设、经验与注意事项。
+`POSE_STALE` 注入一次位姿失效。Agent 重新定位后继续抓取与返航，Verifier 检查是否返回 A 且仍持有目标；该场景用于演示工具反馈后的恢复。工具返回失败不自动证明 Agent 的决策存在错误。
 
 输出位于 `runtime/`：任务结果 `mission_report.json`、JSONL 轨迹与 `episodes.sqlite3`。运行时文件已被 Git 忽略。
 
@@ -57,7 +57,7 @@ DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --fault POSE_STALE --output-dir runtime/qwen-memory-demo
 ```
 
-再次执行同一命令，将复用同一路径中的 SQLite 经验库。新任务可检索前一次任务已凝练、恢复结果已验证的经验。模型在每轮决策中获得当前 Working Memory 与相关经验；经验总结也使用同一模型接口，不新增 Memory Agent。
+再次执行同一命令，将复用同一路径中的 SQLite 经验库。新任务可检索前一次任务已凝练且有验证证据的经验。模型在每轮决策中获得当前 Working Memory 与相关经验；经验总结也使用同一模型接口，不新增 Memory Agent。
 
 结果中保留模型请求与经验总结的指标；模型请求数包含实际执行的决策、场景理解和经验总结调用。模型返回内容由 Pydantic 校验。总结失败时保留原始执行记录，未完成总结的条目不作为已凝练经验注入。
 
@@ -65,13 +65,46 @@ python -m robot_agent demo --llm qwen --image examples/scene_ab.png --memory --f
 
 `.env` 不进入版本控制，不要将 API Key 填入示例文件或日志。
 
-## 经验与验证的边界
+## 历史决策复盘
 
-Working Memory 保存当前位置、物体/位姿、持物状态、动作、观察和错误。Episodic Memory 保存执行记录，并增加结构化经验：触发条件、失败原因假设、可复用经验和注意事项。检索以任务、类别、Skill 和失败类型过滤。
+Working Memory 保存当前位置、物体/位姿、持物状态、动作、观察和错误，维护当前任务事实。Episodic Memory 根据历史“决策 + 当时状态 + 失败反馈 + 后续过程”提取可复用的规划经验：
 
-只有恢复经过独立验证且经验总结已完成的条目，才进入后续决策上下文。恢复成功不代表原因假设被证实，`cause_status` 只能是 `UNKNOWN` 或 `HYPOTHESIS`；UNKNOWN 的原因文本由程序统一保留为“原因尚未确认”，防止模型在未知状态下夹带物理因果猜测。当前观察与工具前置条件始终优先，历史经验不能写入机器人位置或覆盖物理反馈。
+- applicability：什么情境下适用。
+- decision_issue：历史决策中经证据支持的问题。
+- planning_constraints：以后规划需要满足的条件或检查。
+- lesson / precautions：可复用经验与注意事项。
+- source_turns：支持这条经验的历史轮次。
 
-本仓库提供的软件与 API 级演示使用 Mock Backend；平台 GIF/MP4 为已有演示录像，不单独证明新 Agent 的完整硬件闭环。
+只有运行时证据支持 DECISION_ERROR，才能把历史失败归因为决策错误。工具报错、传感器缺反馈或执行未达目标，本身不等同于规划失误。经验总结也不用于猜测物理故障根因。
+
+存入 SQLite 后，经验需为 READY，且满足“恢复经过独立验证”或“decision_error_verified 已由运行时证据确认”之一，才进入后续 ReAct 上下文。因此，有确证的规划前置条件错误即使没有恢复，也可以形成条件性经验。当前观察与工具前置条件始终优先，历史经验不能覆写 Working Memory 中的实时事实。
+
+### 受控示例
+
+离线运行：
+
+```bash
+python examples/reflection_demo.py --output-dir runtime/reflection-demo
+```
+
+使用前文配置的 Qwen API 生成反思与后续决策：
+
+```bash
+python examples/reflection_demo.py --llm qwen --output-dir runtime/reflection-qwen
+```
+
+已保存的完整示例使用 `qwen-plus` 生成反思与后续决策，可通过环境变量 `QWEN_MODEL=qwen-plus` 复现该模型选择；默认使用 `.env` 中的配置。模型生成的经验是条件性建议，当前工具前置条件、重试预算和 Verifier 始终优先。
+
+该示例按四步展示经验形成与复用：
+
+1. **历史失败**：在尚未取得当前有效位姿、前置条件没有改善的情况下，受控历史 Agent 反复提出抓取。运行时拒绝提案，保留决策、当时 Working Memory、失败反馈与后续过程。
+2. **决策复盘**：将完整历史提供给总结步骤，识别有证据支持的规划问题，形成“先取得有效位姿”“前置条件未改善时不机械重试”等条件性约束和注意事项。Qwen 模式由真实模型生成该反思。
+3. **长期保存**：结构化经验与来源轮次写入 SQLite，经运行时确认的决策错误可成为后续检索条目。
+4. **后续任务**：新任务检索并注入历史经验，再生成下一步决策。输出的 `prior_ep_id` 对应被复用的历史条目，`next_decision` 展示注入之后的实际动作选择。
+
+历史中的错误提案是为复盘而受控设置的，不声称 Qwen 自发犯了这些错误。默认模式采用脚本化总结与决策、可离线运行；`--llm qwen` 使用真实模型进行反思与后续决策。演示关注经验生成、持久化、回读和注入的链路，不推断物理故障原因。
+
+本仓库的软件与 API 级演示使用 Mock Backend；平台 GIF/MP4 为已有演示录像，不单独证明新 Agent 的完整硬件闭环。
 
 ## 硬件接入
 

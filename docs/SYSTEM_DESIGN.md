@@ -23,7 +23,10 @@ flowchart TD
     G --> O
     O --> V[Deterministic Verifier]
     V --> W
-    V --> S[Existing model: structured experience consolidation]
+    A --> H[Historical decisions + state + feedback + subsequent actions]
+    X --> H
+    V --> H
+    H --> S[Existing model: planning reflection]
     S --> E
     A --> F[FINISH requests fresh feedback]
     F --> C{At A AND holding target?}
@@ -69,17 +72,25 @@ FINISH always acquires new feedback and checks current start location AND held t
 
 ## Episodic Memory
 
-SQLite contains episodes, skill_events and missions. Episodes retain task/category/skill/failure, failure observation, actual recovery strategy, verification result and recovery-verified flag. They also contain an ExperienceSummary, its generation status/provider and any bounded generation-error code. Every skill event and mission snapshot is persisted when memory is enabled.
+SQLite contains episodes, skill_events and missions. Episodes retain a failed decision and its contemporaneous Working Memory, the actual tool feedback, referenced turns and subsequent actions. The runtime keeps recovery evidence and verified decision-error evidence separate from the model's reflection. An ExperienceSummary and its generation status/provider are stored alongside this evidence; raw execution records remain available for inspection.
 
-After a recovery is confirmed, or when a mission ends with unsummarized episodes, the same model client performs a separate Pydantic-validated summary step. ExperienceSummary records trigger, cause_hypothesis, cause_status, lesson and precautions. This is a function in the single Agent execution path, not a second Memory Agent. The offline scripted client supplies explicitly scripted summaries; only the Qwen client makes model requests.
+The same model client reviews this history after a recovery or at a mission boundary. ExperienceSummary contains applicability, decision_issue, planning_constraints, lesson, precautions and source_turns. It asks what was wrong or missing in a historical planning decision, under which conditions the lesson applies, and what checks or constraints should guide later decisions. It is a structured generation step in the single Agent, not a separate Memory Agent and not a physical root-cause diagnosis.
 
-Cause analysis and outcome verification have different meanings. cause_status is UNKNOWN or HYPOTHESIS, never CONFIRMED. A successful reacquisition after POSE_STALE validates a recovery outcome; it does not establish why a real pose became stale. A model cannot promote recovery verification, rewrite the observed recovery sequence or install a physical fact by generating a summary.
+A tool failure alone does not prove that the Agent planned incorrectly. Only runtime evidence supporting DECISION_ERROR permits the reflection to attribute the failure to a decision mistake. For example, a grasp proposal without a current valid pose can support a precondition-planning lesson when the original decision, state and rejection are recorded. source_turns ties the reflection to the provided history instead of allowing invented supporting events.
 
-Retrieve at mission start and on failure, using bound SQL metadata filters by task type, category, skill and failure type. Inject at most three entries that have both a verified successful recovery and a completed structured summary. Failure analyses may remain stored without a verified recovery, but are not promoted into the validated-recovery context. Failed summary generation retains the underlying episode and does not fabricate experience text.
+Retrieve at mission start and on failure, using bound SQL metadata filters by task type, category, skill and failure type. Inject at most three completed summaries. An entry is eligible only when its experience is READY and either its recovery is independently verified or its decision_error_verified flag is set from runtime evidence. A confirmed planning-precondition error can therefore yield a useful lesson even if the mission did not recover; an unverified tool fault does not become a validated decision-error experience. Failed summary generation preserves the original episode and is excluded from the reusable context.
 
-The prompt receives the relevant lesson, precautions and explicitly tentative cause analysis along with the observed recovery strategy. It excludes historical poses and raw instructions. Memory is advisory context; it cannot override current Working Memory, tool preconditions, independent observations or final-goal verification.
+The prompt receives conditional applicability, planning constraints, checks and precautions along with relevant evidence references. Working Memory remains the source of current task facts. Historical experience cannot install a pose, change the current location, override tool preconditions or decide physical success.
 
-Failure episodes begin unverified. Promotion requires the original postconditions: navigation must reach its original target, and a carrying navigation must still hold the same target. Observing arrival while empty cannot verify recovery from object loss. Recovery may be saved before mission completion if it has independently succeeded.
+Recovery verification still checks the original postconditions: navigation must reach its original target, and a carrying navigation must still hold the same target. Observing arrival while empty cannot verify recovery from object loss. The offline scripted client provides explicitly scripted reflections for runnable examples; --llm qwen uses real model calls for reflection and subsequent ReAct decisions.
+
+## Controlled reflection example
+
+The runnable reflection example records a controlled historical failure: the Agent repeatedly proposes a grasp while the required current valid pose remains absent. Runtime checks reject those proposals and preserve each decision, its contemporaneous Working Memory, failure feedback and subsequent events. The fixture is a controlled faulty-proposal sequence, not a claim that Qwen spontaneously made those mistakes.
+
+The same client reviews that history to produce conditional planning constraints and precautions. The intended lesson concerns the decision process: satisfy the missing precondition and do not mechanically retry while the relevant conditions remain unchanged. Runtime evidence determines whether the recorded issue qualifies as DECISION_ERROR; the reflection cannot assign that verification flag by itself.
+
+The experience is persisted in SQLite, then retrieved before a new task decision. The demo exposes prior_ep_id and next_decision so the reused historical entry and the actual subsequent action can be inspected. The default path is fully scripted and offline; --llm qwen uses real model calls for the reflection and subsequent decision. This example demonstrates the two-memory data flow without introducing another Agent or diagnosing physical root causes.
 
 ## Execution uncertainty
 

@@ -28,24 +28,34 @@
   "current_location": "B",
   "pose": null,
   "grasp_state": "NOT_HELD",
-  "last_error": "POSE_STALE"
+  "last_error": null
 }</pre>
 </td>
 <td valign="top">
-<p>将执行轨迹凝练为原因假设、经验和注意事项，存入 SQLite 供后续检索。以下为精简结构示例。</p>
+<p>复盘历史决策、当时状态、失败反馈及后续过程，形成条件性经验。以下为精简结构示例。</p>
 <pre lang="json">{
-  "trigger": "POSE_STALE",
-  "cause_status": "UNKNOWN",
-  "cause_hypothesis": "具体原因尚未确认",
-  "lesson": "重新定位后再抓取",
-  "precautions": ["不复用失效位姿"]
+  "applicability":
+    "到达目标区域后，当前没有有效位姿",
+  "decision_issue":
+    "前置条件未改善时反复提出抓取",
+  "planning_constraints": [
+    "先取得本轮有效位姿，再安排抓取",
+    "前置条件未改善时，不机械重试"
+  ],
+  "lesson":
+    "利用反馈补齐条件，再决定下一步",
+  "precautions": [
+    "状态不明先观察，避免重复无效动作"
+  ]
 }</pre>
 </td>
 </tr>
 </table>
 
-恢复成功或任务结束后进行经验总结。恢复结果由 Verifier 确认，原因分析保留为假设；历史经验与当前状态共同参与下一步决策。任务完成需同时通过返航位置与持物状态验证。
+经运行时证据确认的决策问题，可凝练为规划约束、检查项和注意事项，写入 SQLite 并注入后续 ReAct。Working Memory 保持实时事实；工具失败不自动等同规划错误。任务完成需同时通过返航位置与持物状态验证。
 
-[运行演示](docs/QUICKSTART.md) · [系统架构](docs/SYSTEM_DESIGN.md) · [完整 JSON 示例](examples/memory_demo.json) · [硬件接入](docs/HARDWARE_VALIDATION.md)
+**复盘演示：受控重复抓取提案 → Qwen 反思 → 跨任务检索 → 先定位，再抓取返航。** [查看实际输入、经验与下一步决策](examples/memory_demo.json)。
+
+[运行与复盘](docs/QUICKSTART.md) · [系统架构](docs/SYSTEM_DESIGN.md) · [完整 JSON 示例](examples/memory_demo.json) · [硬件接入](docs/HARDWARE_VALIDATION.md)
 
 新增 Agent 贡献采用 [MIT](LICENSE-AGENT)，第三方代码与媒体授权见 [NOTICE](NOTICE.md)。

@@ -73,6 +73,34 @@ def config_from_environment(**overrides):
     return LLMConfig(**values)
 
 
+def _reflection_inputs(context):
+    """Keep turn references and error attribution tied to runtime records."""
+    failure_turn = context.get("failure_turn")
+    trace = context.get("decision_trace")
+    if type(failure_turn) is not int or failure_turn < 1 or not isinstance(trace, list):
+        raise ValueError(
+            "reflection requires a positive failure_turn and decision_trace"
+        )
+    turns = {
+        entry["turn"]
+        for entry in trace
+        if isinstance(entry, dict)
+        and type(entry.get("turn")) is int
+        and entry["turn"] >= 1
+    }
+    if failure_turn not in turns:
+        raise ValueError("failure_turn must occur in the supplied decision_trace")
+    attribution = context.get("failure_attribution")
+    verified = context.get("decision_error_verified")
+    if (
+        attribution not in {"DECISION_ERROR", "EXECUTION_FAILURE", "UNDETERMINED"}
+        or type(verified) is not bool
+        or verified != (attribution == "DECISION_ERROR")
+    ):
+        raise ValueError("reflection requires consistent runtime decision attribution")
+    return failure_turn, turns, verified
+
+
 class StructuredLLMClient:
     """Fresh Pydantic-validated decisions over the existing Qwen HTTP protocol.
 
@@ -234,31 +262,24 @@ class StructuredLLMClient:
         )
 
     async def summarize_experience(self, context) -> ExperienceSummary:
-        """Distill an episode without promoting observations into verified facts."""
+        """Reflect on past decisions while preserving runtime attribution."""
+        failure_turn, turns, decision_error = _reflection_inputs(context)
         system = (Path(__file__).parent / "prompts/experience_summary.md").read_text(
             encoding="utf-8"
         )
-        verification_fields = {
-            "recovery_result",
-            "verification_result",
-            "recovery_verified",
-        }
-        payload = {
-            "episode_context": {
-                key: value
-                for key, value in context.items()
-                if key not in verification_fields and key != "failure_observation"
-            },
-            "tool_observation": context.get("failure_observation", {}),
-            "recovery_verification": {
-                "recovery_result": context.get("recovery_result", "UNVERIFIED"),
-                "verification_result": context.get("verification_result", {}),
-                "recovery_verified": context.get("recovery_verified", False),
-            },
-        }
-        return await self.structured(
-            ExperienceSummary, system, json.dumps(payload, ensure_ascii=False)
+        summary = await self.structured(
+            ExperienceSummary, system, json.dumps(context, ensure_ascii=False)
         )
+        if (
+            failure_turn not in summary.source_turns
+            or not set(summary.source_turns) <= turns
+        ):
+            raise LLMError(
+                "reflection must cite its failure turn and only supplied turns"
+            )
+        if (summary.decision_issue is not None) != decision_error:
+            raise LLMError("reflection decision_issue contradicts runtime attribution")
+        return summary
 
 
 class ScriptedDecisionClient:
@@ -274,65 +295,86 @@ class ScriptedDecisionClient:
         self.contexts = []
 
     async def summarize_experience(self, context) -> ExperienceSummary:
-        """Return a labelled deterministic demonstration, never a model result."""
+        """Demonstrate planning constraints with a labelled non-model template."""
+        failure_turn, _turns, decision_error = _reflection_inputs(context)
         skill_labels = {
-            "navigate_to": "评估导航",
-            "locate_object": "重新定位目标",
-            "grasp_object": "在当前持物状态允许时评估抓取",
-            "observe_robot_state": "读取当前机器人状态",
+            "navigate_to": "导航",
+            "locate_object": "目标定位",
+            "grasp_object": "抓取",
+            "observe_robot_state": "状态观察",
         }
         skill = context.get("executed_skill")
         skill_label = (
-            skill_labels.get(skill, "执行高层技能")
+            skill_labels.get(skill, "高层技能")
             if isinstance(skill, str)
-            else "执行高层技能"
+            else "高层技能"
         )
         failure = context.get("failure_type")
         if not isinstance(failure, str) or not re.fullmatch(
             r"[A-Za-z][A-Za-z0-9_]{0,63}", failure
         ):
             failure = "未分类异常"
-        strategy = context.get("recovery_strategy", [])
-        if not isinstance(strategy, (list, tuple)):
-            strategy = []
-        recovery = (
-            "、".join(
-                dict.fromkeys(
-                    skill_labels[item]
-                    for item in strategy
-                    if isinstance(item, str) and item in skill_labels
-                )
+        frame = next(
+            entry
+            for entry in context["decision_trace"]
+            if isinstance(entry, dict) and entry.get("turn") == failure_turn
+        )
+        before = frame.get("before", {})
+        if not isinstance(before, dict):
+            before = {}
+        if before.get("uncertain_action") is not None or failure == "ACTION_UNRESOLVED":
+            issue = "先前物理动作尚待核实时，仍安排了新的物理动作。"
+            constraint = "先前动作结果未核清时，下一步先观察当前状态；核清前不安排新的导航或抓取。"
+        elif skill == "grasp_object" and before.get("grasp_state") in {
+            "HELD",
+            "UNKNOWN",
+        }:
+            issue = "抓取决策遗漏了当前持物状态检查。"
+            constraint = "持物状态未知时先观察；已持物时不重复抓取，未持物且其余条件满足时才评估抓取。"
+        elif failure == "POSE_STALE" or (
+            skill == "grasp_object"
+            and (
+                before.get("pose_available") is False
+                or before.get("pose_reference_matches_current") is False
             )
-            or "依据当前观测请求帮助"
-        )
-        evidence = context.get("verification_result")
-        verified = (
-            context.get("recovery_verified") is True
-            and context.get("recovery_result") == "VERIFIED_SUCCESS"
-            and isinstance(evidence, dict)
-            and bool(evidence)
-            and evidence.get("verified", True) is True
-        )
+        ):
+            issue = "抓取决策遗漏了当前有效位姿及引用匹配检查。"
+            constraint = (
+                "抓取前确认当前位姿有效且引用匹配；条件不满足时先重新定位，再评估抓取。"
+            )
+        elif failure == "INVALID_ARGUMENT":
+            issue = "工具选择或参数未满足本任务允许的调用条件。"
+            constraint = (
+                "选择工具前核对允许的工具与任务目标参数；不能原样重复被拒绝的调用。"
+            )
+        elif skill == "navigate_to":
+            issue = "导航决策遗漏了运行时已核实的前置条件。"
+            constraint = "导航未验证到达时，不进入后续定位或抓取；先检查当前导航状态，再按预算重试或求助。"
+        elif skill == "locate_object":
+            issue = "定位决策遗漏了运行时已核实的前置条件或动作顺序。"
+            constraint = "定位未产生当前可用位姿时，不直接进入抓取；先补充观测，再决定重新定位或求助。"
+        else:
+            issue = "本回合规划遗漏了运行时已核实的技能前置条件或动作顺序。"
+            constraint = "选择下一技能前检查当前状态与该技能前置条件；条件不清时先观察，不直接重复失败动作。"
         lesson = (
-            f"按输入记录，该次恢复通过验证；遇到相同错误时，可把{recovery}"
-            "作为候选恢复，行动前仍须重新检查当前证据。恢复成功不证明根因。"
-            if verified
-            else f"该次恢复尚未验证通过，{recovery}仅作事件回顾；"
-            "不能作为已验证的恢复经验，下一步应依据当前观测决定。"
+            "把本回合遗漏的条件检查放到技能选择之前，并利用失败反馈决定下一步，避免无条件重复。"
+            if decision_error
+            else "把本次执行反馈转为后续检查与重试约束，不据此追认原决策有错。"
         )
         return ExperienceSummary(
-            trigger=f"确定性演示：同类任务和物体中，{skill_label}报告{failure}。",
-            cause_hypothesis=(
-                "原因未确认；本条是确定性脚本演示，非模型凝练。"
-                "工具失败与后续恢复结果不能单独证实物理根因。"
-            ),
-            cause_status="UNKNOWN",
+            format_version=2,
+            applicability=f"确定性演示模板（非LLM）：同类任务的{skill_label}遇到{failure}时。",
+            decision_issue=issue if decision_error else None,
+            planning_constraints=[
+                constraint,
+                "相同失败重复出现且当前反馈未改善时，停止盲目重试，按预算请求帮助。",
+            ],
             lesson=lesson,
             precautions=[
-                "历史经验仅供恢复建议；行动前读取当前状态和新观测，不能据此认定已到位、已持物或位姿仍有效。",
-                "恢复通过验证也不能证明根因；原因仍需保留未确认状态。",
-                "仅调用允许的高层工具，不生成低层参数、任意路径或系统命令。",
+                "先核对适用条件与当前工作记忆，工具结果是否成立由Verifier判断。",
+                "历史位姿ID不能复用，只使用当前观测支持的位姿引用。",
             ],
+            source_turns=[failure_turn],
         )
 
     async def decide(self, context):

@@ -1,4 +1,4 @@
-name: Mock demo
+name: Scripted demos
 on: [push, pull_request]
 jobs:
   demo:
@@ -25,6 +25,23 @@ jobs:
           assert r['status']=='COMPLETED' and r['final_verification']['verified'];
           assert r['metrics']['experiences_created']==1 and r['metrics']['consolidation_llm_calls']==0;
           first=next(e for e in r['trace'] if e['event']=='memory_retrieval'); assert first['episode_ids'];
-          assert len(rows)==2 and all(e['verified'] and e['experience_status']=='READY' and e['experience']['lesson'] and e['experience']['precautions'] for e in rows);
-          assert all(e['experience_provider']=='scripted' and e['experience']['cause_status']=='UNKNOWN' for e in rows);
-          print('Two verified missions, summarized SQLite experiences, and history injection checked.')"
+          assert len(rows)==2 and all(e['verified'] and e['experience_status']=='READY' and e['experience']['format_version']==2 and e['experience']['planning_constraints'] and e['experience']['lesson'] and e['experience']['precautions'] for e in rows);
+          assert all(e['experience_provider']=='scripted' and e['experience']['decision_issue'] is None for e in rows);
+          assert all(e['failure_turn'] in e['experience']['source_turns'] and set(e['experience']['source_turns']) <= {t['turn'] for t in e['decision_trace']} for e in rows);
+          print('Two verified missions, v2 planning constraints, grounded turn references, and history injection checked.')"
+      - name: Demonstrate reflection on a decision failure
+        run: python examples/reflection_demo.py --output-dir runtime/ci-reflection
+      - name: Verify decision reflection and corrected follow-up
+        run: >
+          python -c "import json; from pathlib import Path;
+          s=json.loads(Path('runtime/ci-reflection/summary.json').read_text(encoding='utf-8'));
+          assert s['historical_status']=='REQUEST_HELP' and s['episode_count']==1;
+          assert s['prior_ep_id'] and s['prior_ep_id'] in s['injected_episode_ids'];
+          e=s['reflected_experience']; m=s['episodic_memory'];
+          assert e['format_version']==2 and e['decision_issue'] and e['planning_constraints'];
+          assert m['failure_attribution']=='DECISION_ERROR' and m['decision_error_verified'] is True and m['verified'] is False and m['experience']==e;
+          assert set(e['source_turns']) <= {t['turn'] for t in s['historical_decision_evidence']};
+          d=s['next_decision']; assert d['action_type']=='CALL_TOOL' and d['tool_name']=='locate_object';
+          assert d['arguments']['object_category']=='glasses_case';
+          assert s['mission_completed'] is True and s['llm_calls']==0;
+          print('Decision failure reflection, retrieval, corrected next action, and scripted completion checked.')"
