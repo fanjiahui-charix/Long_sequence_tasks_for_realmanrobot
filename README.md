@@ -33,6 +33,22 @@
 
 大模型只选择高层技能，不直接下发关节角、速度或底层硬件参数。任务完成必须同时验证**机器人返回 A**和**仍持有目标物体**。持物判断使用经过标定的实际夹爪宽度；反馈不足时保持 `UNKNOWN`。
 
+## 双层 Memory 演示
+
+两类记忆在**同一轮决策**中使用：Working Memory 保存当前任务事实；Episodic Memory 从 SQLite 取出历史已验证的恢复策略。
+
+| Working Memory · 当前状态 | Episodic Memory · 历史经验 |
+| :---: | :---: |
+| ![Working Memory 当前任务状态](docs/media/working-memory.svg) | ![Episodic Memory 已验证恢复经验](docs/media/episodic-memory.svg) |
+
+第一次任务出现 `POSE_STALE`，重新定位并抓取成功后，系统将恢复动作序列和验证证据写入 SQLite。下一次任务读取同一份历史经验；当机器人再次在 B 点遇到位姿失效，**当前状态与历史经验一起输入 Qwen**，实际返回的下一步是 `locate_object`。
+
+![双层 Memory 参与下一步决策的实际执行轨迹](docs/media/memory-decision-flow.svg)
+
+本次演示使用真实 Qwen API 和 Mock 机器人：7 轮决策、1 次失败、1 次验证恢复，最终返回 A 且持有目标。卡片来自实际决策输入的展示摘录；[查看 JSON 示例与验证字段](examples/memory_demo.json)。它验证了跨任务存储、检索和注入链路，不代表真机成功率或相对无 Memory 的性能提升。
+
+经验目前以“失败类型 + 已验证恢复动作序列 + 验证证据”保存，不额外调用模型生成经验总结。JSON 用于结构化数据，SQLite 用于长期存储，SVG 用于 README 展示。
+
 ## 快速开始
 
 使用独立的 **Python 3.10+** 环境。在仓库根目录安装：

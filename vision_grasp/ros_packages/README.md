@@ -9,7 +9,7 @@ This folder contains the vendored ROS packages used by the grasp side:
 Build them with:
 
 ```bash
-bash /home/rm/Long_sequence_tasks/vision_grasp/setup_grasp_ws.sh
+bash /home/rm/Long_sequence_tasks/vision_grasp/bringup/setup_grasp_ws.sh
 cd ~/lt_grasp_ws
 source devel/setup.bash
 ```

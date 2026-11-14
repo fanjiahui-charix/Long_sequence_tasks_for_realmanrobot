@@ -16,7 +16,7 @@ python3 ~/FoundationPose/capture_object_rgbd.py \
 
 
   /home/rm/miniforge3/envs/foundationpose/bin/python \
-  /home/rm/Long_sequence_tasks/vision_grasp/run_foundationpose_single.py \
+  /home/rm/Long_sequence_tasks/vision_grasp/integration/run_foundationpose_single.py \
   --foundationpose-root /home/rm/FoundationPose \
   --mesh /home/rm/FoundationPose/demo_data/mustard0/mesh/textured_simple.obj \
   --rgb /home/rm/FoundationPose/foundationpose_live/rgb.png \

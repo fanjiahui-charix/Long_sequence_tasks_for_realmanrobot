@@ -13,9 +13,9 @@ For project use, prefer the repository entrypoint instead of calling the
 individual smoke-test scripts directly:
 
 ```bash
-python3 /home/rm/Long_sequence_tasks/vision_grasp/run_grasp.py open
-python3 /home/rm/Long_sequence_tasks/vision_grasp/run_grasp.py close
-python3 /home/rm/Long_sequence_tasks/vision_grasp/run_grasp.py pick-demo
+python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py open
+python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py close
+python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py pick-demo
 ```
 
 It does not import the existing `robot_actions` or `robot_recognition` code.
@@ -71,7 +71,7 @@ packages used by this demo were copied into:
 Build them in one grasp workspace:
 
 ```bash
-bash /home/rm/Long_sequence_tasks/vision_grasp/setup_grasp_ws.sh
+bash /home/rm/Long_sequence_tasks/vision_grasp/bringup/setup_grasp_ws.sh
 cd ~/lt_grasp_ws
 source devel/setup.bash
 ```

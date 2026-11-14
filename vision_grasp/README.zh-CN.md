@@ -126,11 +126,6 @@ FoundationPose 前面的神经网络分割层。
 - 纯抓取执行：
   `/home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py`
 
-为了兼容旧路径，顶层 wrapper 仍然保留：
-
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_pose_grasp_pipeline.py`
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_foundationpose_single.sh`
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_grasp.py`
 
 ## 运行环境
 

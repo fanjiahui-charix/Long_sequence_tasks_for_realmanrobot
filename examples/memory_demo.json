@@ -1,0 +1,142 @@
+{
+  "provenance": {
+    "evaluation": "Mock/API-level Evaluation",
+    "date": "2026-11-14",
+    "decision_provider": "qwen",
+    "model": "qwen3-vl-plus",
+    "agent_source_commit": "2058908a79c0748742aa2cef942652c00d74ec40",
+    "selection": "Presentation projection of actual decision inputs; not the full runtime state or database.",
+    "history": "Verified recovery from a separate, earlier Qwen + Mock mission, loaded from persistent SQLite."
+  },
+  "working_memory": {
+    "mission_status": "RUNNING",
+    "current_location": "B",
+    "object_detected": true,
+    "pose": null,
+    "grasp_state": "NOT_HELD",
+    "last_error": "POSE_STALE",
+    "completed_actions": [
+      {
+        "tool": "navigate_to",
+        "arguments": {
+          "target": "B"
+        },
+        "timestamp": 1794632609.2841125
+      },
+      {
+        "tool": "locate_object",
+        "arguments": {
+          "object_category": "glasses_case"
+        },
+        "timestamp": 1794632612.2593215
+      }
+    ],
+    "latest_observation": {
+      "source": "mock_actual_state",
+      "robot_location": "B",
+      "localization_confirmed": true,
+      "navigation_status": "SUCCEEDED",
+      "object_detected": null
+    }
+  },
+  "episodic_memory": {
+    "episode_id": "cf9fb346-0f0b-462f-a9bc-60d389777b55",
+    "executed_skill": "grasp_object",
+    "failure_type": "POSE_STALE",
+    "recovery_strategy": [
+      "locate_object",
+      "grasp_object"
+    ],
+    "verified": true,
+    "recovery_result": "VERIFIED_SUCCESS",
+    "verification_result": {
+      "widths_mm": [
+        25.0,
+        25.0,
+        25.0
+      ],
+      "calibration_id": "mock-only-v1",
+      "calibration_origin": "synthetic",
+      "sources": [
+        "mock_actual_encoder"
+      ],
+      "grasp_state": "HELD",
+      "location": "B"
+    },
+    "source_mission_id": "cfa84c20-3557-43b8-8ae2-03860b14942a"
+  },
+  "next_decision": {
+    "action_type": "CALL_TOOL",
+    "tool_name": "locate_object",
+    "arguments": {
+      "object_category": "glasses_case"
+    },
+    "decision_summary": "Last grasp failed due to POSE_STALE; current pose is null and object detection state is uncertain. Reacquire a fresh pose using locate_object before attempting grasp again."
+  },
+  "execution": {
+    "tool_events": [
+      {
+        "tool_name": "navigate_to",
+        "status": "SUCCEEDED",
+        "error_code": null
+      },
+      {
+        "tool_name": "locate_object",
+        "status": "SUCCEEDED",
+        "error_code": null
+      },
+      {
+        "tool_name": "grasp_object",
+        "status": "FAILED",
+        "error_code": "POSE_STALE"
+      },
+      {
+        "tool_name": "locate_object",
+        "status": "SUCCEEDED",
+        "error_code": null
+      },
+      {
+        "tool_name": "grasp_object",
+        "status": "SUCCEEDED",
+        "error_code": null
+      },
+      {
+        "tool_name": "navigate_to",
+        "status": "SUCCEEDED",
+        "error_code": null
+      }
+    ],
+    "decision_calls": 7,
+    "actual_llm_requests": 7,
+    "historical_episode_present_in_initial_context": true,
+    "historical_episode_present_at_failure": true,
+    "failures": 1,
+    "verified_recoveries": 1,
+    "status": "COMPLETED",
+    "final_verification": {
+      "verified": true,
+      "error_code": null,
+      "grasp_state": "HELD",
+      "evidence": {
+        "robot_at_start": true,
+        "object_held": true,
+        "navigation": {
+          "location": "A",
+          "localization_confirmed": true
+        },
+        "grasp": {
+          "widths_mm": [
+            25.0,
+            25.0,
+            25.0
+          ],
+          "calibration_id": "mock-only-v1",
+          "calibration_origin": "synthetic",
+          "sources": [
+            "mock_actual_encoder"
+          ]
+        }
+      }
+    }
+  }
+}

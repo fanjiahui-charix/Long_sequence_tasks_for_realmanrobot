@@ -126,11 +126,6 @@ The new canonical paths are:
 - Grasp execution:
   `/home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py`
 
-For compatibility, top-level wrappers still exist at:
-
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_pose_grasp_pipeline.py`
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_foundationpose_single.sh`
-- `/home/rm/Long_sequence_tasks/vision_grasp/run_grasp.py`
 
 ## Environments
 
