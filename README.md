@@ -22,22 +22,7 @@ RealMan 移动操作平台演示 · [观看原速视频](docs/media/project-demo
 - **工作记忆与情景记忆协同**：Working Memory 维护实时任务上下文，Episodic Memory 积累历史执行中形成的条件性经验，共同参与当前决策。
 - **面向决策的经验凝练**：复盘历史中的前置条件遗漏、动作顺序问题与无效重试，将其总结为适用条件、规划约束和注意事项，供后续任务调用。
 
-```mermaid
-flowchart LR
-    V["独立状态校验"] -->|状态更新| W[("Working Memory<br/>实时任务与持物状态")]
-    V -->|恢复完成 / 任务结束| R["Qwen 历史决策复盘<br/>经验凝练"]
-    R --> E[("Episodic Memory<br/>SQLite 历史规划约束")]
-    W --> A["ReAct 闭环决策"]
-    E -->|检索相关经验| A
-    U["自然语言指令 + 场景图"] --> P["任务解析"]
-    P --> A
-    A -->|Tool Calling| S["机器人技能执行<br/>导航 / 定位 / 抓取 / 观察"]
-    S -->|实时反馈 Observation| V
-    classDef process fill:#f8fafc,stroke:#cbd5e1,color:#1e293b;
-    classDef memory fill:#f0f6ff,stroke:#94a3b8,color:#1e293b;
-    class U,P,A,S,V,R process;
-    class W,E memory;
-```
+![具身 Agent 与双层记忆执行框架](docs/media/agent-framework.png)
 
 ## 任务场景
 
