@@ -22,6 +22,11 @@ class MissionMetrics(Contract):
     repeated_failures: int = 0
     finish_rejections: int = 0
     episodes_retrieved: int = 0
+    consolidation_calls: int = 0
+    consolidation_llm_calls: int = 0
+    consolidation_latency_sec: list[float] = Field(default_factory=list)
+    consolidation_failures: int = 0
+    experiences_created: int = 0
 
 
 class MissionReport(Contract):

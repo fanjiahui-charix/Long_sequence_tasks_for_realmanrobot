@@ -11,7 +11,7 @@ flowchart TD
     T[Trusted operator marker mapping] --> MS
     MS --> A[Single ReAct decision]
     W[Working Memory] --> A
-    E[SQLite verified recovery episodes] --> A
+    E[SQLite consolidated experiences] --> A
     A --> R[Typed Tool Registry]
     R --> X[Fresh precheck / execution / timeout]
     X --> B[Platform-neutral RobotBackend]
@@ -23,7 +23,8 @@ flowchart TD
     G --> O
     O --> V[Deterministic Verifier]
     V --> W
-    V --> E
+    V --> S[Existing model: structured experience consolidation]
+    S --> E
     A --> F[FINISH requests fresh feedback]
     F --> C{At A AND holding target?}
     C -->|both verified| D[COMPLETED]
@@ -39,7 +40,8 @@ flowchart TD
 | deadlines.py | Cancellation-preserving deadline waits across Python 3.10+, including simultaneous completion/cancel races |
 | state.py | Current mission/location/object/pose/holding state, actions, errors, retries, motion epoch and uncertainty latch |
 | verifier.py | Deterministic navigation, perception, measured-width and final-goal checks |
-| memory/episodic.py | SQLite filtering, event/state persistence and verified recovery promotion |
+| memory/episodic.py | SQLite filtering, event/state persistence, recovery promotion and consolidated experience storage |
+| memory/consolidation.py | Structured experience generation with the existing client, validation and failure handling |
 | backends/base.py | RobotBackend protocol with no ROS/CUDA imports |
 | adapters / hardware_worker.py | Optional existing RealMan capabilities across their existing interpreters |
 | trace.py / evaluation.py | Structured traces, metrics and A/B API-level evaluation |
@@ -67,13 +69,21 @@ FINISH always acquires new feedback and checks current start location AND held t
 
 ## Episodic Memory
 
-SQLite contains episodes, skill_events and missions. Episodes save task/category/skill/failure, failure observation, recovery strategy, verification result and verified flag. Every skill event and mission snapshot is persisted when memory is enabled.
+SQLite contains episodes, skill_events and missions. Episodes retain task/category/skill/failure, failure observation, actual recovery strategy, verification result and recovery-verified flag. They also contain an ExperienceSummary, its generation status/provider and any bounded generation-error code. Every skill event and mission snapshot is persisted when memory is enabled.
 
-Retrieve at mission start and on failure, using bound SQL metadata filters by task type, category, skill and failure type. Inject at most three verified successful recoveries. Prompt projections exclude historical poses and raw instructions; memory is advisory context rather than current physical truth.
+After a recovery is confirmed, or when a mission ends with unsummarized episodes, the same model client performs a separate Pydantic-validated summary step. ExperienceSummary records trigger, cause_hypothesis, cause_status, lesson and precautions. This is a function in the single Agent execution path, not a second Memory Agent. The offline scripted client supplies explicitly scripted summaries; only the Qwen client makes model requests.
+
+Cause analysis and outcome verification have different meanings. cause_status is UNKNOWN or HYPOTHESIS, never CONFIRMED. A successful reacquisition after POSE_STALE validates a recovery outcome; it does not establish why a real pose became stale. A model cannot promote recovery verification, rewrite the observed recovery sequence or install a physical fact by generating a summary.
+
+Retrieve at mission start and on failure, using bound SQL metadata filters by task type, category, skill and failure type. Inject at most three entries that have both a verified successful recovery and a completed structured summary. Failure analyses may remain stored without a verified recovery, but are not promoted into the validated-recovery context. Failed summary generation retains the underlying episode and does not fabricate experience text.
+
+The prompt receives the relevant lesson, precautions and explicitly tentative cause analysis along with the observed recovery strategy. It excludes historical poses and raw instructions. Memory is advisory context; it cannot override current Working Memory, tool preconditions, independent observations or final-goal verification.
 
 Failure episodes begin unverified. Promotion requires the original postconditions: navigation must reach its original target, and a carrying navigation must still hold the same target. Observing arrival while empty cannot verify recovery from object loss. Recovery may be saved before mission completion if it has independently succeeded.
 
 ## Execution uncertainty
+
+Consolidation uses a 30-second deadline, at most six attempts per mission and at most two per episode (a recovery attempt plus one terminal retry). Invalid or unavailable model summaries are recorded as FAILED and excluded from retrieval. Model request counts and latency distinguish consolidation from action decisions. After a model wait the agent refreshes robot observations; if terminal consolidation followed a successful final check, it independently verifies the final goal again.
 
 Physical skills run serially. Timeout, cancelled coroutine and terminated process do not establish that hardware stopped. A dispatched ambiguous action sets uncertain_action. Further physical calls are blocked until an explicit observation turn provides fresh settled navigation/arm feedback; grasp reconciliation also requires actual post-retreat holding evidence.
 

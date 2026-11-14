@@ -4,9 +4,9 @@
     "date": "2026-11-14",
     "decision_provider": "qwen",
     "model": "qwen3-vl-plus",
-    "agent_source_commit": "2058908a79c0748742aa2cef942652c00d74ec40",
-    "selection": "Presentation projection of actual Qwen decision inputs plus SQLite verification metadata. recovery_result, verification_result and source_mission_id come from the stored episode, not the five-field episode projection sent to Qwen.",
-    "history": "Verified recovery from a separate, earlier Qwen + Mock mission, loaded from persistent SQLite."
+    "source_base_commit": "69f51662ddcbf0e7ca09e013a4a7b6c54e74c390",
+    "source_code_sha256": "56f46560eade81f9515c38e4d2d15bd231926d77be2e6746557a4577e9301011",
+    "selection": "Projection of actual model decision inputs; storage verification and provenance are separate metadata."
   },
   "working_memory": {
     "mission_status": "RUNNING",
@@ -14,33 +14,10 @@
     "object_detected": true,
     "pose": null,
     "grasp_state": "NOT_HELD",
-    "last_error": "POSE_STALE",
-    "completed_actions": [
-      {
-        "tool": "navigate_to",
-        "arguments": {
-          "target": "B"
-        },
-        "timestamp": 1794632609.2841125
-      },
-      {
-        "tool": "locate_object",
-        "arguments": {
-          "object_category": "glasses_case"
-        },
-        "timestamp": 1794632612.2593215
-      }
-    ],
-    "latest_observation": {
-      "source": "mock_actual_state",
-      "robot_location": "B",
-      "localization_confirmed": true,
-      "navigation_status": "SUCCEEDED",
-      "object_detected": null
-    }
+    "last_error": "POSE_STALE"
   },
   "episodic_memory": {
-    "episode_id": "cf9fb346-0f0b-462f-a9bc-60d389777b55",
+    "episode_id": "1df0afa5-8462-4d4d-95fb-4e5ec545b783",
     "executed_skill": "grasp_object",
     "failure_type": "POSE_STALE",
     "recovery_strategy": [
@@ -48,7 +25,24 @@
       "grasp_object"
     ],
     "verified": true,
-    "recovery_result": "VERIFIED_SUCCESS",
+    "experience": {
+      "trigger": "移动抓取并返回任务中，抓取眼镜盒时因位姿过期（POSE_STALE）失败，机器人位于B点、机械臂空闲且运动已停止，但目标物体未被检测到。",
+      "cause_hypothesis": "具体原因尚未确认；错误与恢复结果不足以确定物理根因。",
+      "cause_status": "UNKNOWN",
+      "lesson": "当抓取因位姿过期失败且机器人已就位、机械臂空闲时，可尝试重新定位物体并再次抓取；本次恢复在合成反馈中验证成功，表明该流程在该模拟条件下可行，但不保证物理世界复现。",
+      "precautions": [
+        "仅当机器人已到达目标区域、机械臂空闲且运动停止后，才执行重新定位与抓取",
+        "重新定位前必须通过独立观测（如视觉重检）确认物体存在与大致位置，不能依赖原位姿",
+        "合成验证（如mock_encoder）仅说明流程逻辑通顺，不代表真实传感器或物理抓取成功",
+        "若重复定位仍无法检出物体，应暂停并上报，避免无效循环",
+        "恢复动作前需确保导航与机械臂状态均稳定，避免运动干扰导致新错误"
+      ]
+    }
+  },
+  "stored_episode": {
+    "source_mission_id": "d7d49a19-dc61-4db9-ae9a-683a9b12936b",
+    "experience_status": "READY",
+    "experience_provider": "qwen",
     "verification_result": {
       "widths_mm": [
         25.0,
@@ -62,8 +56,7 @@
       ],
       "grasp_state": "HELD",
       "location": "B"
-    },
-    "source_mission_id": "cfa84c20-3557-43b8-8ae2-03860b14942a"
+    }
   },
   "next_decision": {
     "action_type": "CALL_TOOL",
@@ -71,48 +64,18 @@
     "arguments": {
       "object_category": "glasses_case"
     },
-    "decision_summary": "Last grasp failed due to POSE_STALE; current pose is null and object detection state is uncertain. Reacquire a fresh pose using locate_object before attempting grasp again."
+    "decision_summary": "因 last_error 为 POSE_STALE 且 pose 为空, 需重新定位目标物体以获取有效位姿参考；当前机器人已就位 B、机械臂空闲、运动稳定，符合恢复条件。"
   },
   "execution": {
-    "tool_events": [
-      {
-        "tool_name": "navigate_to",
-        "status": "SUCCEEDED",
-        "error_code": null
-      },
-      {
-        "tool_name": "locate_object",
-        "status": "SUCCEEDED",
-        "error_code": null
-      },
-      {
-        "tool_name": "grasp_object",
-        "status": "FAILED",
-        "error_code": "POSE_STALE"
-      },
-      {
-        "tool_name": "locate_object",
-        "status": "SUCCEEDED",
-        "error_code": null
-      },
-      {
-        "tool_name": "grasp_object",
-        "status": "SUCCEEDED",
-        "error_code": null
-      },
-      {
-        "tool_name": "navigate_to",
-        "status": "SUCCEEDED",
-        "error_code": null
-      }
-    ],
+    "mission_id": "710486d4-f9b0-458a-89f3-34c05e3519e2",
+    "status": "COMPLETED",
     "decision_calls": 7,
-    "actual_llm_requests": 7,
-    "historical_episode_present_in_initial_context": true,
-    "historical_episode_present_at_failure": true,
+    "actual_llm_requests": 9,
+    "consolidation_llm_calls": 1,
     "failures": 1,
     "verified_recoveries": 1,
-    "status": "COMPLETED",
+    "historical_experience_in_initial_context": true,
+    "historical_experience_in_failure_context": true,
     "final_verification": {
       "verified": true,
       "error_code": null,

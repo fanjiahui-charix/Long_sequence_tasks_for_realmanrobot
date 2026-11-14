@@ -4,6 +4,7 @@ import time
 import asyncio
 
 from .executor import ToolExecutor
+from .memory.consolidation import ExperienceConsolidator
 from .schemas import AgentDecision, Episode, Verification
 from .state import WorkingMemory
 from .trace import MissionMetrics, MissionReport, TraceRecorder
@@ -19,6 +20,8 @@ class ReActAgent:
         max_turns=30,
         max_failures=3,
         trace_path=None,
+        consolidation_timeout_s=30,
+        max_consolidations=6,
     ):
         self.client = client
         self.registry = registry
@@ -26,6 +29,10 @@ class ReActAgent:
         self.max_turns = max_turns
         self.max_failures = max_failures
         self.trace_path = trace_path
+        if consolidation_timeout_s <= 0 or max_consolidations < 0:
+            raise ValueError("invalid consolidation bounds")
+        self.consolidation_timeout_s = consolidation_timeout_s
+        self.max_consolidations = max_consolidations
         self._running = False
         self.state = None
         self.trace = None
@@ -66,6 +73,10 @@ class ReActAgent:
         seen_failures = set()
         actions = []
         invalid_decisions = 0
+        consolidation_attempts = {}
+        consolidator = ExperienceConsolidator(
+            self.client, timeout_s=self.consolidation_timeout_s
+        )
 
         def retrieve(skill=None, error=None):
             if self.memory is None:
@@ -87,6 +98,7 @@ class ReActAgent:
                     "failure_type": e.failure_type,
                     "recovery_strategy": e.recovery_strategy,
                     "verified": e.verified,
+                    "experience": e.experience.model_dump(mode="json"),
                 }
                 for e in episodes
             ]
@@ -107,9 +119,12 @@ class ReActAgent:
             observation=state.last_observation.model_dump(mode="json"),
         )
 
-        def account_decision(tick, requests_before):
+        def account_request(tick, requests_before, *, consolidation=False):
             latency = time.perf_counter() - tick
-            metrics.decision_latency_sec.append(latency)
+            if consolidation:
+                metrics.consolidation_latency_sec.append(latency)
+            else:
+                metrics.decision_latency_sec.append(latency)
             if getattr(self.client, "is_real_llm", True):
                 calls = (
                     max(0, self.client.request_count - requests_before)
@@ -117,12 +132,64 @@ class ReActAgent:
                     else 1
                 )
                 metrics.llm_calls += calls
+                if consolidation:
+                    metrics.consolidation_llm_calls += calls
                 if calls:
                     recorded = getattr(self.client, "latencies", [])
                     metrics.llm_latency_sec.extend(
                         recorded[-calls:] if recorded else [latency]
                     )
             return latency
+
+        async def consolidate_episode(episode):
+            if (
+                self.memory is None
+                or episode.experience_status == "READY"
+                or consolidation_attempts.get(episode.episode_id, 0) >= 2
+                or metrics.consolidation_calls >= self.max_consolidations
+            ):
+                return False
+            consolidation_attempts[episode.episode_id] = (
+                consolidation_attempts.get(episode.episode_id, 0) + 1
+            )
+            metrics.consolidation_calls += 1
+            tick = time.perf_counter()
+            requests_before = getattr(self.client, "request_count", None)
+            try:
+                experience = await consolidator.summarize(episode)
+                provider = (
+                    getattr(getattr(self.client, "config", None), "provider", "llm")
+                    if getattr(self.client, "is_real_llm", True)
+                    else "scripted"
+                )
+                self.memory.save_experience(
+                    episode.episode_id, experience, provider=provider
+                )
+                metrics.experiences_created += 1
+                trace.add(
+                    "experience_consolidated",
+                    episode_id=episode.episode_id,
+                    recovery_verified=episode.verified,
+                    provider=provider,
+                    experience=experience.model_dump(mode="json"),
+                )
+            except Exception as exc:
+                # Summary failures never invent experience or substitute for robot evidence.
+                error_code = "SUMMARY_" + type(exc).__name__.upper()
+                self.memory.fail_experience(episode.episode_id, error_code)
+                metrics.consolidation_failures += 1
+                trace.add(
+                    "experience_consolidation_failed",
+                    episode_id=episode.episode_id,
+                    error_code=error_code,
+                )
+            finally:
+                account_request(tick, requests_before, consolidation=True)
+            # Model latency cannot keep previous physical claims fresh.
+            state.ingest(
+                await executor.observe(mission), self.registry.verifier, now=time.time()
+            )
+            return True
 
         for _ in range(self.max_turns):
             context = {
@@ -138,7 +205,7 @@ class ReActAgent:
                 decision = await self.client.decide(context)
                 decision = AgentDecision.model_validate(decision)
             except Exception as exc:
-                account_decision(tick, requests_before)
+                account_request(tick, requests_before)
                 invalid_decisions += 1
                 state.last_error = "INVALID_DECISION"
                 trace.add("decision_error", error_type=type(exc).__name__)
@@ -146,7 +213,7 @@ class ReActAgent:
                     state.mission_status = "REQUEST_HELP"
                     break
                 continue
-            latency = account_decision(tick, requests_before)
+            latency = account_request(tick, requests_before)
             state.begin(decision)
             trace.add(
                 "decision",
@@ -188,6 +255,10 @@ class ReActAgent:
                 self.memory.record_mission(state)
             if result.status == "SUCCEEDED" and result.verification.verified:
                 resolved = []
+                recovered_episodes = []
+                recovery_now = time.time()
+                # Commit all matches from this one verified result before any model wait
+                # refreshes the physical state. Later observations are separate evidence.
                 for item in pending:
                     carry_ok = not item["carry_required"] or (
                         state.grasp_state == "HELD"
@@ -214,7 +285,7 @@ class ReActAgent:
                         and state.uncertain_action is None
                         and carry_ok
                         and self.registry.verifier.navigation(
-                            result.observation, target=item["target"], now=time.time()
+                            result.observation, target=item["target"], now=recovery_now
                         ).verified
                     )
                     if same or reconciled_grasp or reconciled_nav:
@@ -224,7 +295,7 @@ class ReActAgent:
                             "location": state.current_location,
                         }
                         if self.memory:
-                            self.memory.mark_recovered(
+                            recovered_episode = self.memory.mark_recovered(
                                 item["episode_id"], strategy, evidence
                             )
                         metrics.recoveries += 1
@@ -234,10 +305,14 @@ class ReActAgent:
                             failure_type=item["error"],
                             strategy=strategy,
                         )
+                        if self.memory:
+                            recovered_episodes.append(recovered_episode)
                         resolved.append(item)
                 for item in resolved:
                     pending.remove(item)
-                if not pending:
+                for episode in recovered_episodes:
+                    await consolidate_episode(episode)
+                if self.memory or not pending:
                     episodes = retrieve()
             else:
                 metrics.failures += 1
@@ -283,6 +358,25 @@ class ReActAgent:
         state.current_action = None
         state.updated_at = time.time()
         if self.memory:
+            terminal_summary_attempted = False
+            for episode in self.memory.pending_experiences(mission.mission_id):
+                terminal_summary_attempted = (
+                    await consolidate_episode(episode) or terminal_summary_attempted
+                )
+            if terminal_summary_attempted and state.mission_status == "COMPLETED":
+                state.ingest(
+                    await executor.observe(mission),
+                    self.registry.verifier,
+                    now=time.time(),
+                )
+                final = self.registry.verifier.final_goal(state, now=time.time())
+                trace.add(
+                    "final_verification_after_consolidation",
+                    result=final.model_dump(mode="json"),
+                )
+                if not final.verified:
+                    state.mission_status = "REQUEST_HELP"
+                    state.last_error = "FINAL_GOAL_NOT_VERIFIED"
             self.memory.record_mission(
                 state, verified=state.mission_status == "COMPLETED" and final.verified
             )

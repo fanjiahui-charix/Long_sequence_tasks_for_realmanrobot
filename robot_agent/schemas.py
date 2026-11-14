@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StringConstraints,
+    model_validator,
+)
 
 ToolName = Literal[
     "navigate_to", "locate_object", "grasp_object", "observe_robot_state"
@@ -184,6 +191,26 @@ class ToolResult(Contract):
     carry_required: bool = False
 
 
+class ExperienceSummary(Contract):
+    """A model's bounded analysis, never a verified physical root cause."""
+
+    trigger: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=180)
+    ]
+    cause_hypothesis: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+    ]
+    cause_status: Literal["UNKNOWN", "HYPOTHESIS"] = "UNKNOWN"
+    lesson: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=400)
+    ]
+    precautions: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
+        ]
+    ] = Field(min_length=1, max_length=5)
+
+
 class Episode(Contract):
     episode_id: str = Field(default_factory=lambda: str(uuid4()))
     mission_id: str
@@ -196,6 +223,10 @@ class Episode(Contract):
     recovery_result: Literal["UNVERIFIED", "VERIFIED_SUCCESS", "FAILED"] = "UNVERIFIED"
     verification_result: dict[str, Any] = Field(default_factory=dict)
     verified: bool = False
+    experience: ExperienceSummary | None = None
+    experience_status: Literal["PENDING", "READY", "FAILED"] = "PENDING"
+    experience_provider: str | None = None
+    experience_error: str | None = None
     created_at: float = Field(default_factory=time.time)
 
     @model_validator(mode="after")
@@ -208,4 +239,10 @@ class Episode(Contract):
             raise ValueError(
                 "verified recovery needs strategy and verification evidence"
             )
+        return self
+
+    @model_validator(mode="after")
+    def valid_experience(self):
+        if (self.experience_status == "READY") != (self.experience is not None):
+            raise ValueError("only READY experience may contain a summary")
         return self

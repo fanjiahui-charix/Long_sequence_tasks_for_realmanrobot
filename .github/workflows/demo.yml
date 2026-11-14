@@ -15,3 +15,16 @@ jobs:
       - run: python -m pip install .
       - run: python -m robot_agent demo --memory --output-dir runtime/ci-demo
       - run: python -m robot_agent demo --memory --fault POSE_STALE --output-dir runtime/ci-recovery
+      - name: Reuse the summarized experience in another mission
+        run: python -m robot_agent demo --memory --fault POSE_STALE --output-dir runtime/ci-recovery
+      - name: Verify experience persistence and prompt injection
+        run: >
+          python -c "import json,sqlite3; from pathlib import Path;
+          p=Path('runtime/ci-recovery'); r=json.loads((p/'mission_report.json').read_text(encoding='utf-8'));
+          c=sqlite3.connect(p/'episodes.sqlite3'); rows=[json.loads(x[0]) for x in c.execute('SELECT payload FROM episodes')];
+          assert r['status']=='COMPLETED' and r['final_verification']['verified'];
+          assert r['metrics']['experiences_created']==1 and r['metrics']['consolidation_llm_calls']==0;
+          first=next(e for e in r['trace'] if e['event']=='memory_retrieval'); assert first['episode_ids'];
+          assert len(rows)==2 and all(e['verified'] and e['experience_status']=='READY' and e['experience']['lesson'] and e['experience']['precautions'] for e in rows);
+          assert all(e['experience_provider']=='scripted' and e['experience']['cause_status']=='UNKNOWN' for e in rows);
+          print('Two verified missions, summarized SQLite experiences, and history injection checked.')"

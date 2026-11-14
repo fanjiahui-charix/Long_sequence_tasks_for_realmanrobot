@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from pathlib import Path
 
-from ..schemas import Episode
+from ..schemas import Episode, ExperienceSummary
 
 
 class EpisodicMemory:
@@ -49,20 +48,72 @@ class EpisodicMemory:
         self.connection.commit()
         return episode.episode_id
 
-    def mark_recovered(self, episode_id, strategy, evidence):
+    def get(self, episode_id: str) -> Episode:
         row = self.connection.execute(
             "SELECT payload FROM episodes WHERE episode_id=?", (episode_id,)
         ).fetchone()
         if row is None:
             raise KeyError(episode_id)
-        payload = json.loads(row[0])
+        return Episode.model_validate_json(row[0])
+
+    def mark_recovered(self, episode_id, strategy, evidence) -> Episode:
+        """Record recovery evidence without producing model analysis."""
+        payload = self.get(episode_id).model_dump()
         payload.update(
             recovery_strategy=strategy,
             verification_result=evidence,
             verified=True,
             recovery_result="VERIFIED_SUCCESS",
+            experience=None,
+            experience_status="PENDING",
+            experience_provider=None,
+            experience_error=None,
         )
-        self.save(Episode.model_validate(payload))
+        episode = Episode.model_validate(payload)
+        self.save(episode)
+        return episode
+
+    def save_experience(
+        self, episode_id: str, summary: ExperienceSummary, provider: str
+    ) -> Episode:
+        """Save analysis without changing the recovery's verification status."""
+        payload = self.get(episode_id).model_dump()
+        payload.update(
+            experience=ExperienceSummary.model_validate(summary).model_dump(),
+            experience_status="READY",
+            experience_provider=provider,
+            experience_error=None,
+        )
+        episode = Episode.model_validate(payload)
+        self.save(episode)
+        return episode
+
+    def fail_experience(self, episode_id: str, error_code: str) -> Episode:
+        payload = self.get(episode_id).model_dump()
+        payload.update(
+            experience=None,
+            experience_status="FAILED",
+            experience_provider=None,
+            experience_error=error_code,
+        )
+        episode = Episode.model_validate(payload)
+        self.save(episode)
+        return episode
+
+    def pending_experiences(self, mission_id: str) -> list[Episode]:
+        rows = self.connection.execute(
+            "SELECT payload FROM episodes WHERE mission_id=? ORDER BY created_at,episode_id",
+            (mission_id,),
+        )
+        try:
+            episodes = (Episode.model_validate_json(row[0]) for row in rows)
+            return [
+                episode
+                for episode in episodes
+                if episode.experience_status in {"PENDING", "FAILED"}
+            ]
+        finally:
+            rows.close()
 
     def retrieve(
         self,
@@ -72,9 +123,8 @@ class EpisodicMemory:
         object_category=None,
         task_type="mobile_pick_and_return",
         limit=3,
-        verified_only=True,
     ):
-        clauses, values = ["task_type=?"], [task_type]
+        clauses, values = ["task_type=?", "verified=1"], [task_type]
         for column, value in [
             ("executed_skill", skill),
             ("failure_type", failure_type),
@@ -83,16 +133,27 @@ class EpisodicMemory:
             if value is not None:
                 clauses.append(column + "=?")
                 values.append(value)
-        if verified_only:
-            clauses.append("verified=1")
-        values.append(max(1, min(int(limit), 3)))
+        limit = max(1, min(int(limit), 3))
+        # Old JSON payloads default to PENDING. Limit only after READY filtering,
+        # so newer unsummarized rows cannot hide older usable experience.
         rows = self.connection.execute(
             "SELECT payload FROM episodes WHERE "
             + " AND ".join(clauses)
-            + " ORDER BY created_at DESC,episode_id LIMIT ?",
+            + " ORDER BY created_at DESC,episode_id",
             values,
-        ).fetchall()
-        return [Episode.model_validate_json(row[0]) for row in rows]
+        )
+        found = []
+        try:
+            for row in rows:
+                episode = Episode.model_validate_json(row[0])
+                if not episode.verified or episode.experience_status != "READY":
+                    continue
+                found.append(episode)
+                if len(found) >= limit:
+                    break
+        finally:
+            rows.close()
+        return found
 
     def record_skill(self, mission_id, result):
         self.connection.execute(

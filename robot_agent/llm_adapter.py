@@ -15,8 +15,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, model_validator
-from .schemas import Contract
-from .schemas import AgentDecision
+from .schemas import AgentDecision, Contract, ExperienceSummary
 
 
 class LLMError(RuntimeError):
@@ -234,6 +233,33 @@ class StructuredLLMClient:
             AgentDecision, system, json.dumps(context, ensure_ascii=False)
         )
 
+    async def summarize_experience(self, context) -> ExperienceSummary:
+        """Distill an episode without promoting observations into verified facts."""
+        system = (Path(__file__).parent / "prompts/experience_summary.md").read_text(
+            encoding="utf-8"
+        )
+        verification_fields = {
+            "recovery_result",
+            "verification_result",
+            "recovery_verified",
+        }
+        payload = {
+            "episode_context": {
+                key: value
+                for key, value in context.items()
+                if key not in verification_fields and key != "failure_observation"
+            },
+            "tool_observation": context.get("failure_observation", {}),
+            "recovery_verification": {
+                "recovery_result": context.get("recovery_result", "UNVERIFIED"),
+                "verification_result": context.get("verification_result", {}),
+                "recovery_verified": context.get("recovery_verified", False),
+            },
+        }
+        return await self.structured(
+            ExperienceSummary, system, json.dumps(payload, ensure_ascii=False)
+        )
+
 
 class ScriptedDecisionClient:
     """A transparent deterministic policy for software tests. This is not an LLM.
@@ -246,6 +272,68 @@ class ScriptedDecisionClient:
 
     def __init__(self):
         self.contexts = []
+
+    async def summarize_experience(self, context) -> ExperienceSummary:
+        """Return a labelled deterministic demonstration, never a model result."""
+        skill_labels = {
+            "navigate_to": "评估导航",
+            "locate_object": "重新定位目标",
+            "grasp_object": "在当前持物状态允许时评估抓取",
+            "observe_robot_state": "读取当前机器人状态",
+        }
+        skill = context.get("executed_skill")
+        skill_label = (
+            skill_labels.get(skill, "执行高层技能")
+            if isinstance(skill, str)
+            else "执行高层技能"
+        )
+        failure = context.get("failure_type")
+        if not isinstance(failure, str) or not re.fullmatch(
+            r"[A-Za-z][A-Za-z0-9_]{0,63}", failure
+        ):
+            failure = "未分类异常"
+        strategy = context.get("recovery_strategy", [])
+        if not isinstance(strategy, (list, tuple)):
+            strategy = []
+        recovery = (
+            "、".join(
+                dict.fromkeys(
+                    skill_labels[item]
+                    for item in strategy
+                    if isinstance(item, str) and item in skill_labels
+                )
+            )
+            or "依据当前观测请求帮助"
+        )
+        evidence = context.get("verification_result")
+        verified = (
+            context.get("recovery_verified") is True
+            and context.get("recovery_result") == "VERIFIED_SUCCESS"
+            and isinstance(evidence, dict)
+            and bool(evidence)
+            and evidence.get("verified", True) is True
+        )
+        lesson = (
+            f"按输入记录，该次恢复通过验证；遇到相同错误时，可把{recovery}"
+            "作为候选恢复，行动前仍须重新检查当前证据。恢复成功不证明根因。"
+            if verified
+            else f"该次恢复尚未验证通过，{recovery}仅作事件回顾；"
+            "不能作为已验证的恢复经验，下一步应依据当前观测决定。"
+        )
+        return ExperienceSummary(
+            trigger=f"确定性演示：同类任务和物体中，{skill_label}报告{failure}。",
+            cause_hypothesis=(
+                "原因未确认；本条是确定性脚本演示，非模型凝练。"
+                "工具失败与后续恢复结果不能单独证实物理根因。"
+            ),
+            cause_status="UNKNOWN",
+            lesson=lesson,
+            precautions=[
+                "历史经验仅供恢复建议；行动前读取当前状态和新观测，不能据此认定已到位、已持物或位姿仍有效。",
+                "恢复通过验证也不能证明根因；原因仍需保留未确认状态。",
+                "仅调用允许的高层工具，不生成低层参数、任意路径或系统命令。",
+            ],
+        )
 
     async def decide(self, context):
         self.contexts.append(copy.deepcopy(context))
