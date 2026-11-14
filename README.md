@@ -45,7 +45,7 @@
 
 ![双层 Memory 参与下一步决策的实际执行轨迹](docs/media/memory-decision-flow.svg)
 
-本次演示使用真实 Qwen API 和 Mock 机器人：7 轮决策、1 次失败、1 次验证恢复，最终返回 A 且持有目标。卡片来自实际决策输入的展示摘录；[查看 JSON 示例与验证字段](examples/memory_demo.json)。它验证了跨任务存储、检索和注入链路，不代表真机成功率或相对无 Memory 的性能提升。
+本次演示使用真实 Qwen API 和 Mock 机器人：7 轮决策、1 次失败、1 次验证恢复，最终返回 A 且持有目标。卡片来自实际决策输入与 SQLite 验证记录的展示摘录；[查看 JSON 示例与验证字段](examples/memory_demo.json)。它验证了跨任务存储、检索和注入链路，不代表真机成功率或相对无 Memory 的性能提升。
 
 经验目前以“失败类型 + 已验证恢复动作序列 + 验证证据”保存，不额外调用模型生成经验总结。JSON 用于结构化数据，SQLite 用于长期存储，SVG 用于 README 展示。
 

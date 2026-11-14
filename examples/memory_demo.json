@@ -5,7 +5,7 @@
     "decision_provider": "qwen",
     "model": "qwen3-vl-plus",
     "agent_source_commit": "2058908a79c0748742aa2cef942652c00d74ec40",
-    "selection": "Presentation projection of actual decision inputs; not the full runtime state or database.",
+    "selection": "Presentation projection of actual Qwen decision inputs plus SQLite verification metadata. recovery_result, verification_result and source_mission_id come from the stored episode, not the five-field episode projection sent to Qwen.",
     "history": "Verified recovery from a separate, earlier Qwen + Mock mission, loaded from persistent SQLite."
   },
   "working_memory": {
