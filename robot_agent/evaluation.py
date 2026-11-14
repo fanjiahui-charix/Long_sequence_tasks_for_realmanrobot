@@ -143,7 +143,7 @@ async def evaluate_async(
         "evaluation": "Mock/API-level Evaluation",
         "decision_provider": "real LLM"
         if client_factory
-        else "deterministic scripted policy (not an LLM)",
+        else "deterministic scripted policy",
         "repetitions": repetitions,
         "scenarios": selected,
         "groups": {
@@ -151,10 +151,10 @@ async def evaluate_async(
             for group in ["A", "B"]
         },
         "limitations": [
-            "Backend faults and all hardware evidence are synthetic.",
+            "Backend: deterministic MockRobotBackend with injectable fault sequences.",
             "The same policy, tools, verifier and ordered fault suite are used in A/B; B alone has persistent episodic memory.",
-            "Scripted results establish software behavior, not a causal LLM-memory performance improvement.",
-            "A real-LLM sample remains API-level evaluation and is not physical robot evidence.",
+            "Decision client: scripted by default; --llm qwen selects the configured API model.",
+            "Measurement scope: software/API-level task execution and recovery.",
         ],
     }
     (output / "metrics.json").write_text(

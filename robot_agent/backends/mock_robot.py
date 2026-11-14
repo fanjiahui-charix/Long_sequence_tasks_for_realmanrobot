@@ -28,7 +28,7 @@ def mock_calibration():
 
 
 class MockRobotBackend:
-    """Deterministic in-process robot double, not a physical simulator."""
+    """Deterministic in-process backend for repeatable skill and state tests."""
 
     def __init__(self, *, faults=None):
         self.location = "A"

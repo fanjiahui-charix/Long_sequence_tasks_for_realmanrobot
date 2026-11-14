@@ -1,109 +1,99 @@
-# ReAct + Memory Robot Agent V1
+# 系统设计
 
-## Architecture
+本系统面向跨地点取物任务，将任务理解、ReAct 决策、机器人技能与双层记忆连接起来。Agent 每轮结合当前状态和相关历史经验选择一个技能，执行反馈随后更新状态，形成下一轮决策的输入。
 
-A single agent chooses one high-level action per turn. It never emits trajectories, joint angles, velocity, forces, calibration or executable commands. The old planner/runtime is removed without a compatibility path.
+## 模块分工
 
-```mermaid
-flowchart TD
-    U[Instruction + annotated image] --> M[Qwen vision: MissionDraft]
-    M --> MS[Validated MissionSpec]
-    T[Trusted operator marker mapping] --> MS
-    MS --> A[Single ReAct decision]
-    W[Working Memory] --> A
-    E[SQLite consolidated experiences] --> A
-    A --> R[Typed Tool Registry]
-    R --> X[Fresh precheck / execution / timeout]
-    X --> B[Platform-neutral RobotBackend]
-    B --> N[Navigation]
-    B --> P[RGB-D / segmentation / FoundationPose / TF]
-    B --> G[Grasp / actual state reader]
-    N --> O[Independent Observation]
-    P --> O
-    G --> O
-    O --> V[Deterministic Verifier]
-    V --> W
-    A --> H[Historical decisions + state + feedback + subsequent actions]
-    X --> H
-    V --> H
-    H --> S[Existing model: planning reflection]
-    S --> E
-    A --> F[FINISH requests fresh feedback]
-    F --> C{At A AND holding target?}
-    C -->|both verified| D[COMPLETED]
-    C -->|false or unknown| A
-```
+| 模块 | 作用 |
+| --- | --- |
+| `mission.py` / `schemas.py` | 任务描述、决策、观察、位姿及经验的数据结构 |
+| `llm_adapter.py` / `prompts/` | Qwen 等模型接口、结构化决策与经验反思 |
+| `agent.py` | 逐轮决策、执行反馈、恢复与记忆更新 |
+| `state.py` | 当前任务的 Working Memory |
+| `tool_registry.py` / `executor.py` | 工具参数、前置条件、执行超时与反馈处理 |
+| `verifier.py` | 导航、视觉定位、持物及任务结果检查 |
+| `memory/episodic.py` | SQLite 持久化、经验状态与条件检索 |
+| `memory/consolidation.py` / `planning.py` | 决策证据整理、问题归因与经验凝练 |
+| `backends/` / `adapters/` | Mock / RealMan 后端与导航、视觉、抓取适配 |
+| `trace.py` / `evaluation.py` | 执行轨迹、指标与软件基准 |
 
-| Module | Responsibility |
-|---|---|
-| schemas.py / mission.py | Pydantic contracts, image-grounded mission facts, immutable success rules and trusted mapping |
-| llm_adapter.py / prompts | Qwen-compatible HTTP, optional compatible/Ollama transports, server JSON mode and mandatory local schema validation |
-| agent.py | One decision → one tool → observation → state/memory update → next decision |
-| tool_registry.py / executor.py | Argument allowlists, preconditions, fresh execution-boundary telemetry, deadlines and cancellation |
-| deadlines.py | Cancellation-preserving deadline waits across Python 3.10+, including simultaneous completion/cancel races |
-| state.py | Current mission/location/object/pose/holding state, actions, errors, retries, motion epoch and uncertainty latch |
-| verifier.py | Deterministic navigation, perception, measured-width and final-goal checks |
-| memory/episodic.py | SQLite filtering, event/state persistence, recovery promotion and consolidated experience storage |
-| memory/consolidation.py | Structured experience generation with the existing client, validation and failure handling |
-| backends/base.py | RobotBackend protocol with no ROS/CUDA imports |
-| adapters / hardware_worker.py | Optional existing RealMan capabilities across their existing interpreters |
-| trace.py / evaluation.py | Structured traces, metrics and A/B API-level evaluation |
+## 任务理解与 ReAct 决策
 
-## Decisions and tools
+自然语言和标注场景图经模型理解后，形成 `MissionSpec`。当前示例约定起点 A、取物位置 B 与眼镜盒目标；A/B 标签对应的导航点来自部署配置。
 
-AgentDecision is CALL_TOOL, FINISH, ABORT or REQUEST_HELP, with a short decision summary. A CALL_TOOL contains exactly one high-level call:
+每轮上下文包含任务目标、Working Memory、检索到的相关经验和可调用工具。模型返回 `AgentDecision`：
 
-- navigate_to(target): trusted mission location label only, no arbitrary coordinates or speed.
-- locate_object(object_category): new RGB-D, configured segmentation, FoundationPose and camera-to-base transformation; returns opaque pose_id.
-- grasp_object(object_category, pose_reference): only the current verified pose_id; internally reuses home/pregrasp/grasp/close/retreat.
-- observe_robot_state(): read-only current feedback; state is also collected automatically at skill boundaries.
+- `CALL_TOOL`：选择一个技能及其高层参数。
+- `FINISH`：请求读取当前反馈并检查任务结果。
+- `REQUEST_HELP` / `ABORT`：请求协助或结束任务。
 
-No release/place tool exists. Every result is independently checked; backend success flags are insufficient.
+模型输出通过 Pydantic 校验后进入执行流程。执行层负责工具调用与设备操作，观察结果再写回工作记忆；下一轮可据此选择重新定位、继续抓取、返航或补充状态观察。
 
-A pose retains its original acquisition lower-bound timestamp. Model latency cannot refresh it. Base movement and grasp attempts invalidate it. Frame, current source location, object category and motion epoch must match; matrices must be finite rigid SE(3) transforms. Segmentation and FoundationPose scores must be finite before applying configured thresholds.
+## 机器人技能
+
+| 技能 | 执行内容 |
+| --- | --- |
+| `navigate_to(target)` | 将任务位置标签映射为底盘导航目标，检查到达反馈 |
+| `locate_object(object_category)` | RGB-D 采集、目标分割、FoundationPose 位姿估计与相机到基座坐标变换 |
+| `grasp_object(object_category, pose_reference)` | 使用当前目标位姿完成预抓取、抓取、闭合和回撤 |
+| `observe_robot_state()` | 更新导航、机械臂、运动稳定性和夹爪状态 |
+
+视觉定位返回 `pose_id`。Agent 在抓取参数中引用该 ID，适配层据此读取对应位姿与资源。位姿同时关联物体类别、坐标系、采集时间、机器人位置和运动轮次；底盘移动或抓取尝试后按执行结果重新获取定位。
 
 ## Working Memory
 
-A Pydantic object holds MissionSpec, mission status, location, detection/pose, held-target identity, actual width and HELD/NOT_HELD/UNKNOWN, completed/current actions, latest observation/error, retries, turn count, motion epoch and unresolved physical action. Each decision sees a bounded structured summary, rather than complete logs/images.
+Working Memory 保存当前任务状态与进展，包括机器人位置、物体检测和位姿、持物状态、已完成与当前动作、最新观察、错误及重试计数。
 
-Only verified tool evidence installs a pose or held-target identity. Missing/stale observations invalidate previous physical claims. Grasp width must be measured, fresh, stable over distinct samples and, for HELD, observed after retreat using a category-specific calibration. Commanded opening is never evidence.
+技能结果由执行层检查后写入状态。每轮模型得到的是当前状态摘要，历史轨迹则保存在执行记录与情景记忆中。机器人状态随新的观察更新，采样时间用于判断反馈和位姿是否仍然有效。
 
-FINISH always acquires new feedback and checks current start location AND held target. UNKNOWN fails the final gate. The agent cannot write COMPLETED itself through a tool argument or model response.
+持物状态使用 `HELD / NOT_HELD / UNKNOWN`。实际宽度样本结合目标类别标定、采样稳定性与回撤状态判定，已确认的目标身份随成功抓取建立。任务结束时，系统重新读取位置与持物反馈，确认携物返回的结果。
 
 ## Episodic Memory
 
-SQLite contains episodes, skill_events and missions. Episodes retain a failed decision and its contemporaneous Working Memory, the actual tool feedback, referenced turns and subsequent actions. The runtime keeps recovery evidence and verified decision-error evidence separate from the model's reflection. An ExperienceSummary and its generation status/provider are stored alongside this evidence; raw execution records remain available for inspection.
+SQLite 保存三类数据：`episodes` 记录失败情境、恢复过程与经验；`skill_events` 记录技能执行；`missions` 记录任务状态与结果。
 
-The same model client reviews this history after a recovery or at a mission boundary. ExperienceSummary contains applicability, decision_issue, planning_constraints, lesson, precautions and source_turns. It asks what was wrong or missing in a historical planning decision, under which conditions the lesson applies, and what checks or constraints should guide later decisions. It is a structured generation step in the single Agent, not a separate Memory Agent and not a physical root-cause diagnosis.
+### 决策证据与经验凝练
 
-A tool failure alone does not prove that the Agent planned incorrectly. Only runtime evidence supporting DECISION_ERROR permits the reflection to attribute the failure to a decision mistake. For example, a grasp proposal without a current valid pose can support a precondition-planning lesson when the original decision, state and rejection are recorded. source_turns ties the reflection to the provided history instead of allowing invented supporting events.
+每个经验条目保存失败轮次、当时的决策、执行前后状态、工具反馈和后续动作。在恢复成功或任务结束时，同一模型接口对这些记录进行反思，生成 `ExperienceSummary`：
 
-Retrieve at mission start and on failure, using bound SQL metadata filters by task type, category, skill and failure type. Inject at most three completed summaries. An entry is eligible only when its experience is READY and either its recovery is independently verified or its decision_error_verified flag is set from runtime evidence. A confirmed planning-precondition error can therefore yield a useful lesson even if the mission did not recover; an unverified tool fault does not become a validated decision-error experience. Failed summary generation preserves the original episode and is excluded from the reusable context.
+| 字段 | 语义 |
+| --- | --- |
+| `applicability` | 经验适用的任务与状态条件 |
+| `decision_issue` | 记录中有证据支持的决策问题 |
+| `planning_constraints` | 后续应检查的前置条件、动作顺序和重试条件 |
+| `lesson` | 对下一次决策的经验总结 |
+| `precautions` | 适用边界与注意事项 |
+| `source_turns` | 支持总结的历史轮次 |
 
-The prompt receives conditional applicability, planning constraints, checks and precautions along with relevant evidence references. Working Memory remains the source of current task facts. Historical experience cannot install a pose, change the current location, override tool preconditions or decide physical success.
+运行时将失败分为 `DECISION_ERROR`、`EXECUTION_FAILURE` 与 `UNDETERMINED`。例如，模型在已知没有有效位姿时仍提出抓取，可形成前置条件漏检的决策经验；已满足前置条件的技能执行失败，则保留为执行反馈。总结中的 `decision_issue` 根据这一归因填写，其来源轮次必须出现在记录内并包含失败轮次。
 
-Recovery verification still checks the original postconditions: navigation must reach its original target, and a carrying navigation must still hold the same target. Observing arrival while empty cannot verify recovery from object loss. The offline scripted client provides explicitly scripted reflections for runnable examples; --llm qwen uses real model calls for reflection and subsequent ReAct decisions.
+### 持久化与检索
 
-## Controlled reflection example
+任务开始和执行失败时，系统按任务类型、技能、失败类型及物体类别检索经验，每次最多注入三条。条目完成总结后为 `READY`，同时满足以下任一条件即可复用：
 
-The runnable reflection example records a controlled historical failure: the Agent repeatedly proposes a grasp while the required current valid pose remains absent. Runtime checks reject those proposals and preserve each decision, its contemporaneous Working Memory, failure feedback and subsequent events. The fixture is a controlled faulty-proposal sequence, not a claim that Qwen spontaneously made those mistakes.
+- 恢复过程经过独立结果验证。
+- 决策问题已有运行时证据，即 `decision_error_verified` 成立。
 
-The same client reviews that history to produce conditional planning constraints and precautions. The intended lesson concerns the decision process: satisfy the missing precondition and do not mechanically retry while the relevant conditions remain unchanged. Runtime evidence determines whether the recorded issue qualifies as DECISION_ERROR; the reflection cannot assign that verification flag by itself.
+因此，未成功恢复的任务也能留下有依据的负向规划经验。历史前置条件未改善的重复错误提案可归为一个案例，已执行的不同失败尝试分别保存。
 
-The experience is persisted in SQLite, then retrieved before a new task decision. The demo exposes prior_ep_id and next_decision so the reused historical entry and the actual subsequent action can be inspected. The default path is fully scripted and offline; --llm qwen uses real model calls for the reflection and subsequent decision. This example demonstrates the two-memory data flow without introducing another Agent or diagnosing physical root causes.
+模型在下一任务中先将经验的适用条件与当前 Working Memory 对照，再选择动作。历史经验提供规划约束，实时观察提供当前事实。
 
-## Execution uncertainty
+### 总结状态与资源控制
 
-Consolidation uses a 30-second deadline, at most six attempts per mission and at most two per episode (a recovery attempt plus one terminal retry). Invalid or unavailable model summaries are recorded as FAILED and excluded from retrieval. Model request counts and latency distinguish consolidation from action decisions. After a model wait the agent refreshes robot observations; if terminal consolidation followed a successful final check, it independently verifies the final goal again.
+总结状态为 `PENDING / READY / FAILED`。生成失败时保留原始过程，以便重新总结；只有完成总结且满足检索条件的条目进入决策上下文。
 
-Physical skills run serially. Timeout, cancelled coroutine and terminated process do not establish that hardware stopped. A dispatched ambiguous action sets uncertain_action. Further physical calls are blocked until an explicit observation turn provides fresh settled navigation/arm feedback; grasp reconciliation also requires actual post-retreat holding evidence.
+默认总结时限为 30 秒，每任务最多六次、每条经验最多两次尝试。模型等待后重新读取机器人状态，任务结束阶段的总结完成后也会复查结果。这些参数由 Agent 配置控制。
 
-Cancellation attempts an independent configured stop and retains uncertainty until feedback resolves it. POSIX workers own a process group. Windows workers start suspended, join a kill-on-close Job, then resume; descendants remain owned if their parent exits. Killing workers never substitutes for robot state verification.
+## 执行与异常恢复
 
-Three repeated same skill/failure events, a global turn bound, repeated invalid model output and rejected FINISH attempts lead to REQUEST_HELP. ABORT remains available.
+物理技能按顺序执行。执行前检查工具参数、当前位置、位姿、持物状态和运动状态；超时与取消由执行器及平台停止接口处理。
 
-## Environments and deployment
+当动作已发出而结果尚未核清时，Working Memory 标记 `uncertain_action`，下一步先观察。新的反馈确认导航与机械臂稳定后，再决定后续技能；抓取结果还需要相应的回撤与持物反馈。
 
-Agent: independent Python >=3.10, Pydantic, PyYAML and stdlib SQLite/HTTP/asyncio. ROS workers retain the ROS Noetic system interpreter. FoundationPose retains its own Conda interpreter and model dependencies. No ROS/CUDA/PyTorch upgrade or environment merge is performed.
+默认的同类失败重试限制、总轮次限制、无效决策次数与结束请求检查共同控制任务持续时间。达到限制或无法继续时，任务返回 `REQUEST_HELP`。执行轨迹记录各轮决策、观察、验证、恢复和经验注入，便于分析动作选择与失败原因。
 
-Real motion requires explicit enablement and a passing confirmed config: actual width calibration, state/stop ports, waypoint tolerances, localization validity and sensor/TF timing. See HARDWARE_VALIDATION.md. Retained arm/camera parameters are inputs preserved from the original project, not new calibration evidence.
+## 环境解耦与扩展
+
+Agent 依赖 Python 3.10+、Pydantic、PyYAML 与标准库 SQLite/HTTP/asyncio。ROS Noetic、YOLO-seg 与 FoundationPose 通过各自解释器运行，模型和硬件依赖由适配层管理。
+
+其他平台可实现 [RobotBackend 接口](BACKEND_API.md)，复用同一决策与记忆流程。RealMan 配置、实际反馈和联调步骤见 [真机部署与预检指南](HARDWARE_VALIDATION.md)。

@@ -3,6 +3,7 @@
     "date": "2026-11-14",
     "evaluation": "Mock/API-level Evaluation",
     "source_base_commit": "177bb706bd812e92aa461bf5a7e790df2b772eca",
+    "source_snapshot_commit": "9b821cca15edd72b045cd49a7d3f931fad9497bd",
     "source_code_sha256": "dbe9dc929b5be595db40543712b85545e2992625ec4716ace29c09d6e8a29ee3",
     "mission_input": "prevalidated demo MissionSpec; no new image-understanding evaluation",
     "historical_policy": "controlled faulty policy; not spontaneous Qwen errors",

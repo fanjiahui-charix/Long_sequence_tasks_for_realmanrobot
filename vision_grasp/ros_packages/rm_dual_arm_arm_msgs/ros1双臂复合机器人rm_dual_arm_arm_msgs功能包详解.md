@@ -11,7 +11,6 @@ rm_dual_arm_arm_msgs
     ├── CMakeLists.txt 
     ├── msg   当前的消息文件（详细请看下方介绍）
     │   ├── Arm_Analog_Output.msg
-    │   ├── Arm_Current_State copy.msg
     │   ├── Arm_Current_State.msg
     │   ├── Arm_Digital_Output.msg
     │   ├── Arm_IO_State.msg
@@ -29,7 +28,6 @@ rm_dual_arm_arm_msgs
     │   ├── Force_Position_Move_Joint.msg
     │   ├── Force_Position_Move_Pose.msg
     │   ├── Force_Position_State.msg
-    │   ├── GetArmState_Command copy.msg
     │   ├── GetArmState_Command.msg
     │   ├── Gripper_Pick.msg
     │   ├── Gripper_Set.msg

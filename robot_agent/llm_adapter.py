@@ -102,10 +102,10 @@ def _reflection_inputs(context):
 
 
 class StructuredLLMClient:
-    """Fresh Pydantic-validated decisions over the existing Qwen HTTP protocol.
+    """Structured decisions and experience reflection over Qwen-compatible HTTP.
 
-    No old planner schema, prompt or execution logic is imported. json_object
-    supports the wider Qwen family; json_schema is opt-in per provider capability.
+    Pydantic validates each response. json_object supports the wider Qwen family;
+    json_schema is opt-in per provider capability.
     """
 
     is_real_llm = True

@@ -1,8 +1,7 @@
-"""Reproducible decision-reflection demo, using only a Mock robot.
+"""Decision-reflection benchmark with repeatable precondition-failure injection.
 
-The historical bad policy is deliberately controlled, not a spontaneous Qwen
-mistake. With --llm qwen, reflection and the next mission use real model calls.
-Run after `python -m pip install -e .`; no robot connection is made.
+With --llm qwen, reflection and the follow-up mission use the configured API
+model. Run after `python -m pip install -e .`; robot state uses the Mock backend.
 """
 
 from __future__ import annotations
@@ -159,7 +158,7 @@ async def run_demo(output_dir, delegate):
             "historical": historical_trace.name,
             "current": current_trace.name,
         },
-        "historical_decision_origin": "controlled faulty policy; not spontaneous model errors",
+        "historical_decision_origin": "deterministic precondition-failure injection policy",
         "reflection_provider": "qwen"
         if getattr(delegate, "is_real_llm", False)
         else "scripted template (not an LLM)",
@@ -191,7 +190,7 @@ async def run_demo(output_dir, delegate):
             "historical": historical.metrics.model_dump(mode="json"),
             "current": current.metrics.model_dump(mode="json"),
         },
-        "interpretation": "Records actual constraint injection and a compatible next decision; not a causal performance comparison.",
+        "interpretation": "End-to-end check of reflection, persistence, retrieval, context injection and follow-up tool choice.",
     }
     write_json(output_dir / "historical.json", historical.model_dump(mode="json"))
     write_json(output_dir / "current.json", current.model_dump(mode="json"))

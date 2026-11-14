@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "long-horizon-robot-agent"
-version = "1.2.0"
+version = "1.2.1"
 description = "Single ReAct robot agent with working and SQLite episodic memory"
 license = "MIT"
-license-files = ["LICENSE-AGENT", "NOTICE.md"]
+license-files = ["LICENSE", "NOTICE.md"]
 requires-python = ">=3.10"
 dependencies = ["pydantic>=2.8,<3", "PyYAML>=6.0.1"]
 

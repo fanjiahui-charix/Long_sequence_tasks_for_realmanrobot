@@ -1,9 +1,7 @@
-# Notices and license scope
+# 许可与第三方组件
 
-The new Agent contribution in robot_agent/, the new examples/config templates, and new project documentation is licensed under LICENSE-AGENT (MIT), as selected by the project maintainer.
+`robot_agent/` 中的 Agent 实现，以及新增的示例、配置模板和项目文档，采用根目录 [LICENSE](LICENSE) 中的 MIT License。
 
-Retained or migrated pre-existing robot configuration, navigation/, vision_grasp/, vendor drivers, third-party model code, assets and original documentation retain their existing copyright and license terms. This MIT contribution license does not relicense them. FoundationPose's license remains in vision_grasp/foundationpose/LICENSE.
+`navigation/`、`vision_grasp/` 中已有的机器人代码、配置和第三方组件保留原有版权及许可。FoundationPose 遵循其 [原始许可证](vision_grasp/foundationpose/LICENSE)，其中包含非商业使用条件；ROS 厂商驱动与消息包按各自的源码版权和许可文件使用。
 
-The user-provided project demonstration video and its derived GIF retain their original rights and are outside LICENSE-AGENT's software license scope.
-
-Public source excludes credentials/.env, runtime databases/traces, model weights, local environments and caches. Runtime evidence is delivered separately. Private local credentials remain gitignored and must never be included in a source archive.
+项目演示视频、动图及其他媒体保留原作者的相关权利。

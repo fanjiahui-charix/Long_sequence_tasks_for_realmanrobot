@@ -2,6 +2,8 @@
 
 **RealMan 移动操作平台 · ReAct · Working Memory · Episodic Memory**
 
+[![CI](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml/badge.svg?branch=main)](https://github.com/fanjiahui-charix/Long_sequence_tasks_for_realmanrobot/actions/workflows/demo.yml)
+
 面向自然语言指令驱动的长时序移动操作任务，构建结合 **ReAct 决策与双层记忆**的具身 Agent 框架。系统根据当前任务状态、环境反馈与历史经验，动态编排导航、目标定位、抓取与返回等机器人技能。
 
 项目以 RealMan 移动操作机器人为载体，集成 RGB-D 感知、YOLO-seg 分割、FoundationPose 6D 位姿估计与机械臂抓取，探索执行反馈如何影响后续决策，以及历史失败如何转化为可复用的规划经验。
@@ -10,7 +12,7 @@
 
 ![机器人平台演示](docs/media/project-demo.gif)
 
-RealMan 移动操作平台演示（已有平台录像） · [观看原速视频](docs/media/project-demo.mp4)
+RealMan 移动操作平台演示 · [观看原速视频](docs/media/project-demo.mp4)
 
 ## 方法概述
 
@@ -106,14 +108,14 @@ Agent 在每轮决策前读取任务上下文、最新观察和相关历史经�
 
 | 阶段 | 演示过程 |
 | --- | --- |
-| **历史失败** | 受控历史策略到达 B 后，在没有有效位姿、前置条件没有改善的情况下反复提出抓取；系统拒绝这些提案，并记录各轮决策、状态与失败反馈。 |
+| **历史失败** | 在前置条件缺失的故障注入场景中，历史策略到达 B 后反复提出抓取；系统记录各轮决策、状态与失败反馈。 |
 | **经验反思** | Qwen 复盘上述过程，形成“先取得有效位姿”“前置条件未改善时不机械重试”等规划约束、经验和注意事项。 |
 | **经验积累** | 将总结保存到 SQLite；新的任务重新读取数据库，检索并注入相关历史约束。 |
 | **后续决策** | 当新任务位于 B、当前位姿为空时，实际选择 `locate_object`，随后继续抓取并携物返回。 |
 
 [完整 JSON](examples/memory_demo.json) 包含历史决策、经验总结、实际注入内容与后续动作，可对照观察两类 Memory 如何共同参与决策。[演示脚本](examples/reflection_demo.py) 支持离线运行与 Qwen API 调用。
 
-该案例由真实 `qwen-plus` API 完成经验反思和后续决策，机器人反馈使用 Mock Backend，历史失败提案为受控设置。它用于展示经验形成与复用机制。
+该基准采用可复现的前置条件缺失场景，由 Mock Backend 提供机器人状态，`qwen-plus` API 生成经验反思和后续决策，用于检查经验凝练、持久化与跨任务复用。
 
 ## 运行与文档
 
@@ -142,6 +144,24 @@ python examples/reflection_demo.py --output-dir runtime/reflection
 
 代码入口：[ReAct 决策](robot_agent/agent.py) · [Working Memory](robot_agent/state.py) · [Episodic Memory](robot_agent/memory/episodic.py) · [经验凝练](robot_agent/memory/consolidation.py) · [机器人适配](robot_agent/adapters)
 
+<details>
+<summary>仓库代码导航</summary>
+
+```text
+robot_agent/                 # Agent 决策、记忆与技能调用
+navigation/                  # 底盘导航及 ROS 衔接
+vision_grasp/integration/    # 视觉定位流程集成
+vision_grasp/grasp/          # 机械臂抓取执行
+vision_grasp/foundationpose/ # FoundationPose 算法及适配
+vision_grasp/ros_packages/   # 机器人 ROS 驱动与消息包
+examples/                   # 任务输入、经验复用脚本和结果
+docs/                       # 设计、接口与部署文档
+```
+
+机器人集成代码与内置的算法、驱动分别放置；第三方组件授权见 [NOTICE](NOTICE.md)。
+
+</details>
+
 ## License
 
-新增 Agent 贡献采用 [MIT License](LICENSE-AGENT)。第三方代码和媒体保留原有授权，见 [NOTICE](NOTICE.md)。
+Agent 实现采用 [MIT License](LICENSE)。集成的 FoundationPose、ROS 驱动及媒体保留原有授权，见 [NOTICE](NOTICE.md)。

@@ -1,4 +1,4 @@
-"""Review decisions against what the agent actually knew, not a guessed physical cause."""
+"""Attribute recorded decisions using their contemporaneous state and feedback."""
 
 from ..schemas import DecisionEvidence
 
