@@ -37,9 +37,10 @@
 
 两类记忆在**同一轮决策**中使用：Working Memory 保存当前任务事实；Episodic Memory 从 SQLite 取出历史已验证的恢复策略。
 
-| Working Memory · 当前状态 | Episodic Memory · 历史经验 |
-| :---: | :---: |
-| ![Working Memory 当前任务状态](docs/media/working-memory.svg) | ![Episodic Memory 已验证恢复经验](docs/media/episodic-memory.svg) |
+<p>
+  <img src="docs/media/working-memory.svg" alt="Working Memory 当前任务状态" width="49%" />
+  <img src="docs/media/episodic-memory.svg" alt="Episodic Memory 已验证恢复经验" width="49%" />
+</p>
 
 第一次任务出现 `POSE_STALE`，重新定位并抓取成功后，系统将恢复动作序列和验证证据写入 SQLite。下一次任务读取同一份历史经验；当机器人再次在 B 点遇到位姿失效，**当前状态与历史经验一起输入 Qwen**，实际返回的下一步是 `locate_object`。
 
