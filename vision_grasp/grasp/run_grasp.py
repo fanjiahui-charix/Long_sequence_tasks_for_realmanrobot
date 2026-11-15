@@ -24,12 +24,6 @@ def _load_config(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def _load_demo_module():
-    from vision_grasp.demo.scripts.simple_vision_grasp_demo import VisionGraspDemo
-
-    return VisionGraspDemo
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Control the gripper/hand from Long_sequence_tasks.")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
@@ -43,9 +37,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     angles_parser = subparsers.add_parser("set-angles", help="Set raw dexterous-hand joint angles.")
     angles_parser.add_argument("--angles", required=True, help='Example: "[0,0,0,0,0,1000]"')
-
-    demo_parser = subparsers.add_parser("pick-demo", help="Run the one-shot local vision grasp demo.")
-    demo_parser.add_argument("--target-label", default=None)
 
     pose_parser = subparsers.add_parser(
         "pose-grasp",
@@ -69,36 +60,6 @@ def _resolve_settings(args: argparse.Namespace) -> dict:
     }
 
 
-def _run_pick_demo(config: dict, target_label: str | None) -> dict:
-    try:
-        import rospy
-    except ImportError as exc:
-        raise EndEffectorControlError(
-            "ROS Python packages are not available. Run inside a sourced ROS environment."
-        ) from exc
-
-    if not rospy.core.is_initialized():
-        rospy.init_node("long_tasks_vision_grasp_demo", anonymous=True, disable_signals=True)
-
-    config_ns = "/vision_grasp_demo"
-    merged = dict(config)
-    if target_label:
-        merged["target_label"] = target_label
-    for key, value in merged.items():
-        rospy.set_param(f"{config_ns}/{key}", value)
-
-    VisionGraspDemo = _load_demo_module()
-    demo = VisionGraspDemo()
-    demo.run()
-    return {
-        "backend": "ros",
-        "action": "pick_demo",
-        "config_ns": config_ns,
-        "target_label": merged.get("target_label", ""),
-        "end_effector_type": merged.get("end_effector_type"),
-    }
-
-
 def _run_pose_grasp(
     config: dict,
     *,
@@ -118,11 +79,6 @@ def main() -> None:
     args = build_parser().parse_args()
     settings = _resolve_settings(args)
     config = settings["config"]
-
-    if args.command == "pick-demo":
-        result = _run_pick_demo(config, args.target_label)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return
 
     if args.command == "pose-grasp":
         try:

@@ -12,7 +12,7 @@
 - 通过 ROS 话题接入导航
 - 提供一个 ROS 节点，把导航命令转发到底盘 TCP 接口
 - 用命令行快速测试 ROS 导航命令
-- 让 planner 走 ROS 后端而不是直接 TCP
+- 让 Agent 走 ROS 后端而不是直接 TCP
 
 ## 文件说明
 
@@ -124,5 +124,5 @@ python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.p
 ## 补充说明
 
 - 这个桥接层本身不是完整 ROS 导航栈。
-- 更准确地说，它是“高层规划模块”和“现有底盘接口”之间的一层轻量适配。
+- 更准确地说，它是“高层 Agent”和“现有底盘接口”之间的一层轻量适配。
 - 它支持 RViz goal 发布，但机器人是否真的会因为 `/move_base_simple/goal` 动起来，还取决于机器上是否有完整的导航栈在监听。 

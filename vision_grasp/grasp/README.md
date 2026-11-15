@@ -11,7 +11,6 @@ Use this directory when you need:
 
 - open or close the end effector
 - send raw dexterous-hand angles
-- run a one-shot local pick demo
 - execute a pose-based grasp from a FoundationPose result
 
 ## Files
@@ -59,14 +58,6 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
 python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
   --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
   set-angles --angles "[0,0,0,0,0,1000]"
-```
-
-### Run the older local pick demo
-
-```bash
-python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  pick-demo --target-label mustard
 ```
 
 ### Execute pose grasp from a FoundationPose pose file

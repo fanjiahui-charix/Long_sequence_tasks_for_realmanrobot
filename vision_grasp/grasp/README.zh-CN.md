@@ -11,7 +11,6 @@
 
 - 打开或关闭末端执行器
 - 发送灵巧手原始角度
-- 运行较老的一次性本地抓取 demo
 - 根据 FoundationPose 的位姿结果执行 pose grasp
 
 ## 文件说明
@@ -58,14 +57,6 @@ python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
 python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
   --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
   set-angles --angles "[0,0,0,0,0,1000]"
-```
-
-### 运行旧版本地抓取 demo
-
-```bash
-python3 /home/rm/Long_sequence_tasks/vision_grasp/grasp/run_grasp.py \
-  --config /home/rm/Long_sequence_tasks/vision_grasp/configs/grasp_config.example.yaml \
-  pick-demo --target-label mustard
 ```
 
 ### 根据 FoundationPose 位姿文件执行抓取

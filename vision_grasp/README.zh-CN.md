@@ -24,7 +24,6 @@ vision_grasp/
   camera/            RGB / RGB-D 采集工具
   bringup/           抓取相关工作空间与驱动启动脚本
   configs/           统一抓取配置
-  demo/              较旧的本地 demo 脚本
   ros_packages/      机械臂与末端 ROS 包
   runtime/           每次运行的输出结果
 ```
@@ -93,7 +92,7 @@ FoundationPose 前面的神经网络分割层。
 - `pose_grasp.py`
   相机位姿到基座位姿的抓取执行
 - `run_grasp.py`
-  打开、关闭、pick-demo、pose-grasp 的主 CLI
+  打开、关闭、set-angles、pose-grasp 的主 CLI
 
 ### `camera/`
 

@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="Single ReAct + Working/Episodic Memory Robot Agent"
+        description="ReAct robot agent with working and episodic memory"
     )
     commands = parser.add_subparsers(dest="command", required=True)
     demo = commands.add_parser(

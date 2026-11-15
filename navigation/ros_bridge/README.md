@@ -12,7 +12,7 @@ Use this directory when you want:
 - topic-based navigation integration
 - a ROS node that forwards navigation commands to the chassis socket
 - quick CLI testing of ROS navigation commands
-- planner integration through ROS instead of direct TCP
+- Agent integration through ROS instead of direct TCP
 
 ## Files
 
@@ -128,7 +128,7 @@ python3 /home/rm/Long_sequence_tasks/navigation/ros_bridge/run_navigation_demo.p
 ## Common Notes
 
 - This bridge does not replace a full ROS navigation stack by itself.
-- It is best viewed as a thin adapter between your high-level planner and the
+- It is best viewed as a thin adapter between the high-level Agent and the
   existing chassis interface.
 - RViz goal publication is supported, but whether the robot actually moves from
   `/move_base_simple/goal` depends on what navigation stack is running on the

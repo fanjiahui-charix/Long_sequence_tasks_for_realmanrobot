@@ -1,11 +1,11 @@
 # FoundationPose 模块中文说明
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+[English](./UPSTREAM_README.md) | [简体中文](./README.zh-CN.md)
 
 这个目录是 `Long_sequence_tasks` 内部使用的 FoundationPose 模块，用于 6D 物体位姿估计。
 
 为了方便整个视觉抓取链路统一开源，它被放在 `vision_grasp/` 目录内部。
 
-英文版说明见：`README.md`
+英文版说明见：`UPSTREAM_README.md`
 
 ## 这个模块做什么
 

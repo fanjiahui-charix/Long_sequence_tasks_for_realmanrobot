@@ -1,3 +1,6 @@
-"""Single ReAct robot agent. Hardware imports are optional and isolated."""
+"""ReAct robot agent with working and episodic memory.
 
-__version__ = "1.0.0"
+Hardware imports are optional and isolated.
+"""
+
+__version__ = "1.2.1"

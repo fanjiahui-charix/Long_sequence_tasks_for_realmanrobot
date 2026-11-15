@@ -23,7 +23,6 @@ vision_grasp/
   camera/            RGB / RGB-D capture helpers
   bringup/           Workspace setup and arm-driver launch helpers
   configs/           Canonical grasp config
-  demo/              Older local vision-grasp demo scripts
   ros_packages/      Vendored arm driver and end-effector ROS packages
   runtime/           Per-run outputs, logs, pose files
 ```
@@ -93,7 +92,7 @@ Main files:
 - `pose_grasp.py`
   camera-pose to base-frame grasp execution
 - `run_grasp.py`
-  main CLI for open, close, pick-demo, and pose-grasp
+  main CLI for open, close, set-angles, and pose-grasp
 
 ### `camera/`
 
